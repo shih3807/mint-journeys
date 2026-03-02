@@ -1,0 +1,25 @@
+# Environments
+.env
+.venv
+mint-journeys-venv/
+node_modules/
+
+# javascript
+node_modules/
+dist/
+out/
+*.js
+
+# editor
+.prettierrc
+pyproject.toml
+.editorconfig
+
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# macOS
+.DS_Store
