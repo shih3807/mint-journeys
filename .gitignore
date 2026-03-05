@@ -1,7 +1,7 @@
 # Environments
 .env
 .venv
-mint-journeys-venv/
+mint_journeys_venv/
 node_modules/
 
 # javascript
