@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mint Journeys</title>
+    <!-- 設定 icon -->
+    <link rel="icon" href="../static/icon.webp" />
+    <!-- 字體 -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Noto+Serif+TC:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --mint-light: #f7f4d5;
+        --mint-main: #839958;
+        --mint-dark: #0a3323;
+        --background: #f8f8f8;
+        --peach-main: #bb6830;
+        --rose: #d3968c;
+        --deep-teal: #105666;
+        --almost-black: #111a19;
+        --radius: 5px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background-color: var(--background);
+        font-family: 'Merriweather', 'Noto Serif TC', serif;
+        color: var(--almost-black);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        overflow-x: hidden;
+      }
+
+      /* 提示框樣式 (Toast) */
+      #notification {
+        position: fixed;
+        top: -100px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 15px 30px;
+        border-radius: var(--radius);
+        color: white;
+        font-size: 14px;
+        z-index: 1000;
+        transition: top 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        min-width: 280px;
+        text-align: center;
+      }
+      #notification.error {
+        background-color: var(--rose);
+      }
+      #notification.success {
+        background-color: var(--mint-dark);
+        border: 1px solid var(--mint-main);
+      }
+      #notification.show {
+        top: 20px;
+      }
+
+      .auth-card {
+        background: white;
+        padding: 40px;
+        width: 100%;
+        max-width: 400px;
+        border-radius: var(--radius);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        margin: 20px;
+      }
+
+      .brand-header {
+        text-align: center;
+        margin-bottom: 30px;
+      }
+
+      .brand-header img {
+        height: 40px;
+        margin-bottom: 10px;
+      }
+
+      h2 {
+        font-size: 24px; /* H2 */
+        margin: 0;
+        color: var(--mint-dark);
+      }
+
+      form {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .field-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      label {
+        font-size: 14px; /* Small */
+        font-weight: 700;
+        color: var(--almost-black);
+      }
+
+      input {
+        padding: 12px;
+        border: 1.5px solid #eee;
+        border-radius: var(--radius);
+        font-family: inherit;
+        font-size: 16px;
+        outline: none;
+        transition: border-color 0.3s;
+      }
+
+      input:focus {
+        border-color: var(--mint-main);
+      }
+
+      .btn-submit {
+        background-color: var(--mint-main);
+        color: var(--mint-light);
+        border: none;
+        padding: 14px;
+        font-size: 16px;
+        font-weight: 700;
+        border-radius: var(--radius);
+        cursor: pointer;
+        margin-top: 10px;
+        transition: background 0.3s;
+      }
+
+      .btn-submit:hover {
+        background-color: var(--mint-dark);
+      }
+
+      .switch-mode {
+        text-align: center;
+        margin-top: 25px;
+        font-size: 14px;
+      }
+
+      .switch-mode a {
+        color: var(--peach-main);
+        text-decoration: none;
+        font-weight: 700;
+        margin-left: 5px;
+      }
+
+      /* RWD 微調 */
+      @media (max-width: 480px) {
+        .auth-card {
+          padding: 30px 20px;
+          box-shadow: none;
+          background: transparent;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="notification">提示訊息</div>
+
+    <div class="auth-card">
+      <div class="brand-header">
+        <img src="../static/icon.webp" alt="icon" />
+        <h2 id="form-title">登入系統</h2>
+      </div>
+
+      <form id="auth-form" onsubmit="handleSubmit(event)">
+        <div id="name-field" class="field-group" style="display: none">
+          <label for="username">姓名</label>
+          <input type="text" id="username" placeholder="請輸入您的姓名" />
+        </div>
+
+        <div class="field-group">
+          <label for="email">電子信箱</label>
+          <input
+            type="text"
+            id="email"
+            placeholder="測試帳號信箱：abc@abc.com"
+          />
+        </div>
+
+        <div class="field-group">
+          <label for="password">密碼</label>
+          <input
+            type="password"
+            id="password"
+            placeholder="測試帳號密碼：123"
+          />
+        </div>
+
+        <button type="submit" class="btn-submit" id="submit-text">登入</button>
+      </form>
+
+      <div class="switch-mode">
+        <span id="switch-desc">還沒有帳號嗎？</span>
+        <a href="javascript:void(0)" onclick="toggleMode()" id="switch-btn"
+          >立即註冊</a
+        >
+      </div>
+    </div>
+
+    <script>
+      window.addEventListener('DOMContentLoaded', () => {
+        const params = new URLSearchParams(window.location.search);
+        const mode = params.get('mode');
+
+        if (mode === 'register') {
+          toggleMode();
+        }
+      });
+      let isLoginMode = true;
+      const notification = document.getElementById('notification');
+
+      function showNotification(msg, type = 'error') {
+        notification.textContent = msg;
+        notification.className = type;
+        notification.classList.add('show');
+
+        setTimeout(() => {
+          notification.classList.remove('show');
+        }, 3000);
+      }
+
+      function toggleMode() {
+        isLoginMode = !isLoginMode;
+        const formTitle = document.getElementById('form-title');
+        const submitText = document.getElementById('submit-text');
+        const switchDesc = document.getElementById('switch-desc');
+        const switchBtn = document.getElementById('switch-btn');
+        const nameField = document.getElementById('name-field');
+
+        if (isLoginMode) {
+          formTitle.textContent = '登入系統';
+          submitText.textContent = '登入';
+          switchDesc.textContent = '還沒有帳號嗎？';
+          switchBtn.textContent = '立即註冊';
+          nameField.style.display = 'none';
+        } else {
+          formTitle.textContent = '建立新帳號';
+          submitText.textContent = '註冊';
+          switchDesc.textContent = '已經有帳號了？';
+          switchBtn.textContent = '返回登入';
+          nameField.style.display = 'flex';
+        }
+      }
+
+      async function handleSubmit(e) {
+        e.preventDefault();
+
+        const name = document.getElementById('username').value.trim();
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value.trim();
+
+        // 前端簡單檢查
+        if (!isLoginMode && !name) {
+          showNotification('請輸入姓名', 'error');
+          return;
+        }
+        if (!email) {
+          showNotification('請輸入信箱', 'error');
+          return;
+        }
+        const emailRegex =
+          /^\w+((-\w+)|(\.\w+))*\@[A-Za-z0-9]+((\.|-)[A-Za-z0-9]+)*\.[A-Za-z]+$/;
+
+        if (!emailRegex.test(email)) {
+          showNotification('請輸入正確格式信箱', 'error');
+          return;
+        }
+        if (!password) {
+          showNotification('請輸入密碼', 'error');
+          return;
+        }
+
+        const apiEndpoint = isLoginMode
+          ? '/api/auth/login'
+          : '/api/auth/register';
+
+        // 模擬 API 呼叫
+        try {
+          // 這裡假設成功 (Demo用)
+          if (isLoginMode) {
+            const data = {
+              email: email,
+              password: password,
+            };
+            const jsonString = JSON.stringify(data);
+            async function register(data) {
+              const url = '/api/auth/login';
+
+              try {
+                const res = await fetch(url, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: data,
+                });
+                const result = await res.json();
+                return result;
+              } catch (error) {
+                showNotification('伺服器連線失敗，請稍後再試', 'error');
+                console.log('loginError:', error);
+              }
+            }
+            const result = await register(jsonString);
+            if (result.error) {
+              const message = result.message;
+              showNotification(message, 'error');
+            }
+            if (result.ok) {
+              const token = result.token;
+              localStorage.setItem('token', token);
+              showNotification('登入成功，正在導向...', 'success');
+              setTimeout(() => (window.location.href = '/home'), 1500);
+            }
+          } else {
+            // 註冊
+            const data = {
+              name: name,
+              email: email,
+              password: password,
+            };
+            const jsonString = JSON.stringify(data);
+            async function register(data) {
+              const url = '/api/auth/register';
+
+              try {
+                const res = await fetch(url, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: data,
+                });
+                const result = await res.json();
+                return result;
+              } catch (error) {
+                showNotification('伺服器連線失敗，請稍後再試', 'error');
+                console.log('loginError:', error);
+              }
+            }
+            const result = await register(jsonString);
+            if (result.error) {
+              const message = result.message;
+              showNotification(message, 'error');
+            }
+            if (result.ok) {
+              showNotification('註冊成功！請切換至登入頁面', 'success');
+            }
+          }
+        } catch (err) {
+          showNotification('伺服器連線失敗，請稍後再試', 'error');
+        }
+      }
+    </script>
+  </body>
+</html>
