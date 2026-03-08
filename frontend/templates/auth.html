@@ -286,16 +286,15 @@
           ? '/api/auth/login'
           : '/api/auth/register';
 
-        // 模擬 API 呼叫
+        //  API 呼叫
         try {
-          // 這裡假設成功 (Demo用)
           if (isLoginMode) {
             const data = {
               email: email,
               password: password,
             };
             const jsonString = JSON.stringify(data);
-            async function register(data) {
+            async function login(data) {
               const url = '/api/auth/login';
 
               try {
@@ -313,14 +312,13 @@
                 console.log('loginError:', error);
               }
             }
-            const result = await register(jsonString);
+            const result = await login(jsonString);
             if (result.error) {
               const message = result.message;
               showNotification(message, 'error');
             }
             if (result.ok) {
-              const token = result.token;
-              localStorage.setItem('token', token);
+              localStorage.setItem('token', result.token);
               showNotification('登入成功，正在導向...', 'success');
               setTimeout(() => (window.location.href = '/home'), 1500);
             }
