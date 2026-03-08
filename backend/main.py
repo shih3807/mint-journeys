@@ -14,7 +14,12 @@ from models.table_models import (
     ExchangeRate,
 )
 from seed import insert_test_data
-from models.schemas import SingupRequest, LoginRequest
+from models.schemas import (
+    SingupRequest,
+    LoginRequest,
+    CreateTripRequest,
+    TransactionCreate,
+)
 import bcrypt
 import jwt
 import datetime
@@ -45,6 +50,25 @@ async def index(request: Request):
 @app.get("/auth", include_in_schema=False)
 async def auth_page(request: Request):
     return FileResponse(TEMPLATE_DIR / "auth.html", media_type="text/html")
+
+
+@app.get("/home", include_in_schema=False)
+async def home(request: Request):
+    return FileResponse(TEMPLATE_DIR / "home.html", media_type="text/html")
+
+
+@app.get("/trip/new", include_in_schema=False)
+async def new_trip_page(request: Request):
+    return FileResponse(TEMPLATE_DIR / "new-trip.html", media_type="text/html")
+
+
+@app.get("/trip/{id}/new", include_in_schema=False)
+async def new_transaction_page(
+    request: Request,
+    id: int,
+    currency_id: int | None = None,
+):
+    return FileResponse(TEMPLATE_DIR / "new_transaction.html", media_type="text/html")
 
 
 # 會員系統
@@ -123,18 +147,87 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
         raise
 
 
-# 製作旅程
+# 旅程系統
 
-# @app.post("/api/trips")
-# def create_trip(title: str, user_id: UUID, db: Session = Depends(get_db)):
 
-#     trip = models.table_models.Trip(title=title, user_id=user_id)
+@app.post("/api/trips")
+def create_trip(
+    request: Request, data: CreateTripRequest, db: Session = Depends(get_db)
+):
+    try:
+        # 驗證是否登入
+        auth_header = request.headers.get("Authorization")
 
-#     db.add(trip)
-#     db.commit()
-#     db.refresh(trip)
+        if not auth_header:
+            return JSONResponse(
+                status_code=403,
+                content={"error": True, "message": "未登入系統，拒絕存取"},
+            )
 
-#     return trip
+        # 取得user_id
+        secret = os.environ.get("TOKEN_SECRET")
+        token = auth_header.split(" ")[1]
+        payload = jwt.decode(token, secret, algorithms="HS256")
+        user_id = payload["id"]
+        if not user_id:
+            return JSONResponse(
+                status_code=403,
+                content={"error": True, "message": "未登入系統，拒絕存取"},
+            )
+
+        # 先檢查 member email
+        def ckeck_member_exists(member_email):
+            if member_email:
+                member_user_id = (
+                    db.query(User.id).filter(User.email == member_email).scalar()
+                )
+
+                if member_user_id:
+                    return member_user_id
+                return False
+
+        # 建立 trip
+        trip = Trip(
+            name=data.name,
+            base_currency=data.base_currency,
+            budget=data.budget,
+            start_date=data.start_date,
+            end_date=data.end_date,
+            created_by=user_id,
+        )
+
+        db.add(trip)
+        db.flush()
+
+        # creator 加入 member
+        creator_member = TripMember(trip_id=trip.id, user_id=user_id)
+        db.add(creator_member)
+
+        # 如果有共同編輯者
+        if data.member_email:
+            member_id = ckeck_member_exists(data.member_email)
+
+            if not member_id:
+                return JSONResponse(
+                    status_code=401,
+                    content={"error": True, "message": "共同編輯者不存在"},
+                )
+
+            member = TripMember(trip_id=trip.id, user_id=member_id)
+            db.add(member)
+
+        # 一起 commit
+        db.commit()
+
+        return JSONResponse(
+            status_code=200,
+            content={"ok": True, "message": "成功建立新行程！"},
+        )
+
+    except Exception as e:
+        db.rollback()
+        print(e)
+        raise
 
 
 @app.get("/api/trips")
@@ -160,14 +253,49 @@ def get_trips(request: Request, db: Session = Depends(get_db)):
                 status_code=403,
                 content={"error": True, "message": "未登入系統，拒絕存取"},
             )
-        
 
-
-    except Exception as e:
-        return JSONResponse(
-            status_code=400,
-            content={"error": True, "message": "訂單建立失敗"},
+        # 取得旅程資料
+        creator_trips = (
+            db.query(Trip.name, Trip.start_date, Trip.end_date)
+            .filter(Trip.created_by == user_id)
+            .all()
         )
+
+        member_trips = (
+            db.query(Trip.name, Trip.start_date, Trip.end_date)
+            .join(TripMember)
+            .filter(TripMember.user_id == user_id, Trip.created_by != user_id)
+            .all()
+        )
+
+        creator_result = [
+            {
+                "name": name,
+                "start_date": start_date.isoformat() if start_date else None,
+                "end_date": end_date.isoformat() if end_date else None,
+            }
+            for name, start_date, end_date in creator_trips
+        ]
+
+        member_result = [
+            {
+                "name": name,
+                "start_date": start_date.isoformat() if start_date else None,
+                "end_date": end_date.isoformat() if end_date else None,
+            }
+            for name, start_date, end_date in member_trips
+        ]
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "ok": True,
+                "data": {"trips": creator_result, "shareTrips": member_result},
+            },
+        )
+    except Exception as e:
+        print(e)
+        raise
 
 
 # @app.get("/api/trips/{trip_id}")
@@ -203,33 +331,118 @@ def get_trips(request: Request, db: Session = Depends(get_db)):
 #     return {"message": "trip deleted"}
 
 
-# # ---------------------
-# # Expense System
-# # ---------------------
+# 預設分類
+@app.get("/categories/", response_model=List[dict])
+async def get_categories(db: Session = Depends(get_db)):
+    try:
+        categories = db.query(Category).all()
+        categories_result = [
+            {
+                "category_id": c.id,
+                "category_name": c.name,
+            }
+            for c in categories
+        ]
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "ok": True,
+                "data": categories_result,
+            },
+        )
+    except Exception as e:
+        print(e)
+        raise
 
 
-# @app.post("/api/expenses")
-# def create_expense(
-#     trip_id: UUID,
-#     amount: int,
-#     currency: str,
-#     category: str,
-#     note: str,
-#     db: Session = Depends(get_db),
-# ):
+# 取得貨幣
+@app.get("/currencies/", response_model=List[dict])
+async def get_currencies(db: Session = Depends(get_db)):
+    try:
+        currencies = db.query(Currency).all()
+        currencies_result = [
+            {
+                "currency_id": c.id,
+                "currency_name": c.name,
+                "currency_code": c.code,
+                "currency_symbol": c.symbol,
+            }
+            for c in currencies
+        ]
 
-#     expense = models.table_models.Expense(
-#         trip_id=trip_id, amount=amount, currency=currency, category=category, note=note
-#     )
+        return JSONResponse(
+            status_code=200,
+            content={
+                "ok": True,
+                "data": currencies_result,
+            },
+        )
+    except Exception as e:
+        print(e)
+        raise
 
-#     db.add(expense)
-#     db.commit()
-#     db.refresh(expense)
 
-#     return expense
+# 消費紀錄
 
 
-# @app.get("/api/expenses")
+@app.post("/api/transactions")
+def create_transaction(
+    request: Request,
+    data: TransactionCreate,
+    db: Session = Depends(get_db),
+):
+    try:
+        # 驗證是否登入
+        auth_header = request.headers.get("Authorization")
+
+        if not auth_header:
+            return JSONResponse(
+                status_code=403,
+                content={"error": True, "message": "未登入系統，拒絕存取"},
+            )
+
+        # 取得user_id
+        secret = os.environ.get("TOKEN_SECRET")
+        token = auth_header.split(" ")[1]
+        payload = jwt.decode(token, secret, algorithms="HS256")
+        user_id = payload["id"]
+        if not user_id:
+            return JSONResponse(
+                status_code=403,
+                content={"error": True, "message": "未登入系統，拒絕存取"},
+            )
+
+        currency = db.query(Currency).filter(Currency.id == data.currency_id).first()
+        if not currency:
+            return JSONResponse(
+                status_code=400, content={"error": True, "message": "貨幣不存在"}
+            )
+
+        transaction = Transaction(
+            trip_id=data.trip_id,
+            user_id=user_id,
+            category_id=data.category_id,
+            amount=data.amount,
+            currency=currency.code, 
+            description=data.description,
+            transaction_date=data.transaction_date,
+        )
+
+        db.add(transaction)
+        db.commit()
+        db.refresh(transaction)
+
+        return JSONResponse(
+            status_code=200,
+            content={"ok": True, "message": "消費紀錄儲存成功！"},
+        )
+    except Exception as e:
+        print(e)
+        raise
+
+
+# @app.get("/api/transaction")
 # def get_expenses(trip_id: UUID, db: Session = Depends(get_db)):
 
 #     expenses = (
@@ -241,7 +454,7 @@ def get_trips(request: Request, db: Session = Depends(get_db)):
 #     return expenses
 
 
-# @app.delete("/api/expenses/{expense_id}")
+# @app.delete("/api/transaction/{transaction_id}")
 # def delete_expense(expense_id: UUID, db: Session = Depends(get_db)):
 
 #     expense = (
