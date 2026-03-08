@@ -71,6 +71,15 @@ async def new_transaction_page(
     return FileResponse(TEMPLATE_DIR / "new_transaction.html", media_type="text/html")
 
 
+@app.get("/trip/{id}", include_in_schema=False)
+async def trip_page(
+    request: Request,
+    id: int,
+    currency_id: int | None = None,
+):
+    return FileResponse(TEMPLATE_DIR / "trip.html", media_type="text/html")
+
+
 # 會員系統
 
 
@@ -256,13 +265,19 @@ def get_trips(request: Request, db: Session = Depends(get_db)):
 
         # 取得旅程資料
         creator_trips = (
-            db.query(Trip.name, Trip.start_date, Trip.end_date)
+            db.query(
+                Trip.id, Trip.name, Trip.start_date, Trip.end_date, Trip.base_currency,Currency.id.label("currency_id")
+            )
+            .join(Currency, Trip.base_currency == Currency.code, isouter=True)
             .filter(Trip.created_by == user_id)
             .all()
         )
 
         member_trips = (
-            db.query(Trip.name, Trip.start_date, Trip.end_date)
+            db.query(
+                Trip.id, Trip.name, Trip.start_date, Trip.end_date, Trip.base_currency, Currency.id.label("currency_id") 
+            )
+            .join(Currency, Trip.base_currency == Currency.code, isouter=True)
             .join(TripMember)
             .filter(TripMember.user_id == user_id, Trip.created_by != user_id)
             .all()
@@ -270,20 +285,26 @@ def get_trips(request: Request, db: Session = Depends(get_db)):
 
         creator_result = [
             {
+                "id": id,
                 "name": name,
                 "start_date": start_date.isoformat() if start_date else None,
                 "end_date": end_date.isoformat() if end_date else None,
+                "currency": currency,
+                "currency_id": currency_id, 
             }
-            for name, start_date, end_date in creator_trips
+            for id, name, start_date, end_date, currency,  currency_id in creator_trips
         ]
 
         member_result = [
             {
+                "id": id,
                 "name": name,
                 "start_date": start_date.isoformat() if start_date else None,
                 "end_date": end_date.isoformat() if end_date else None,
+                "currency": currency,
+                "currency_id": currency_id,
             }
-            for name, start_date, end_date in member_trips
+            for id, name, start_date, end_date, currency, currency_id in member_trips
         ]
 
         return JSONResponse(
@@ -298,19 +319,52 @@ def get_trips(request: Request, db: Session = Depends(get_db)):
         raise
 
 
-# @app.get("/api/trips/{trip_id}")
-# def get_trip(trip_id: UUID, db: Session = Depends(get_db)):
+@app.get("/api/trips/{trip_id}")
+def get_trip(trip_id: int, db: Session = Depends(get_db)):
 
-#     trip = (
-#         db.query(models.table_models.Trip)
-#         .filter(models.table_models.Trip.trip_id == trip_id)
-#         .first()
-#     )
+    trip = db.query(Trip).filter(Trip.id == trip_id).first()
 
-#     if not trip:
-#         raise HTTPException(status_code=404, detail="Trip not found")
+    if not trip:
+        return JSONResponse(
+            status_code=404,
+            content={"error": True, "message": "Trip not found"},
+        )
 
-#     return trip
+    transactions = (
+        db.query(
+            Transaction,
+            Category.name.label("category_name"),
+            User.name.label("user_name"),
+        )
+        .join(Category, Transaction.category_id == Category.id, isouter=True)
+        .join(User, Transaction.user_id == User.id)
+        .filter(Transaction.trip_id == trip_id)
+        .order_by(Transaction.transaction_date.desc())
+        .all()
+    )
+    return {
+        "trip": {
+            "id": trip.id,
+            "name": trip.name,
+            "base_currency": trip.base_currency,
+            "budget": trip.budget,
+            "start_date": trip.start_date,
+            "end_date": trip.end_date,
+            "created_by": trip.created_by,
+        },
+        "transactions": [
+            {
+                "id": t.id,
+                "amount": t.amount,
+                "currency": t.currency,
+                "description": t.description,
+                "transaction_date": t.transaction_date,
+                "category": category_name,
+                "user": user_name,
+            }
+            for t, category_name, user_name in transactions
+        ],
+    }
 
 
 # @app.delete("/api/trips/{trip_id}")
@@ -424,7 +478,7 @@ def create_transaction(
             user_id=user_id,
             category_id=data.category_id,
             amount=data.amount,
-            currency=currency.code, 
+            currency=currency.code,
             description=data.description,
             transaction_date=data.transaction_date,
         )

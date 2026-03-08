@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Mint Journeys</title>
+    <link rel="icon" href="../static/icon.webp" />
+
+    <link
+      href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Noto+Serif+TC:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --mint-light: #f7f4d5;
+        --mint-main: #839958;
+        --mint-dark: #0a3323;
+        --peach-main: #bb6830;
+        --background: #f8f8f8;
+        --radius: 5px;
+      }
+
+      body {
+        font-family: 'Merriweather', 'Noto Serif TC', serif;
+        background: var(--background);
+        margin: 0;
+        padding-bottom: 100px;
+      }
+      /* 導覽列 */
+      nav {
+        background-color: white;
+        padding: 15px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+
+      .nav-brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        text-decoration: none;
+        color: var(--mint-dark);
+        font-weight: 700;
+      }
+
+      .nav-brand img {
+        height: 30px;
+      }
+
+      .btn-logout {
+        background: none;
+        border: 1.5px solid var(--peach-main);
+        color: var(--peach-main);
+        padding: 6px 15px;
+        border-radius: var(--radius);
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 14px;
+        transition: 0.3s;
+      }
+
+      .btn-logout:hover {
+        background-color: var(--peach-main);
+        color: white;
+      }
+
+      /* 導覽列與摘要卡 */
+      .header-section {
+        background: white;
+        padding: 20px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+      }
+      .trip-summary {
+        max-width: 600px;
+        margin: 0 auto;
+      }
+      .trip-title {
+        font-size: 24px;
+        color: var(--mint-dark);
+        margin: 0 0 10px 0;
+      }
+      .budget-card {
+        background: var(--mint-main);
+        color: var(--mint-light);
+        padding: 15px;
+        border-radius: var(--radius);
+        display: flex;
+        justify-content: space-between;
+      }
+
+      /* 進度條外框 */
+      .progress-bar-bg {
+        height: 8px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 4px;
+        margin-top: 15px;
+        overflow: hidden;
+      }
+      /* 進度條顏色 */
+      #progress-fill {
+        height: 100%;
+        background: var(--mint-light);
+        width: 0%; /* 動態調整 */
+        transition: width 1s ease-in-out;
+      }
+      /* 消費列表 */
+      .transaction-container {
+        max-width: 600px;
+        margin: 20px auto;
+        padding: 0 20px;
+      }
+      .transaction-item {
+        background: white;
+        padding: 15px;
+        margin-bottom: 10px;
+        border-radius: var(--radius);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-left: 4px solid var(--mint-main);
+      }
+      .tx-info h4 {
+        margin: 0;
+        font-size: 16px;
+      }
+      .tx-info p {
+        margin: 5px 0 0 0;
+        font-size: 12px;
+        color: #666;
+      }
+      .tx-amount {
+        font-weight: 700;
+        color: var(--peach-main);
+      }
+
+      /* FAB 按鈕 */
+      .fab {
+        position: fixed;
+        right: 30px;
+        bottom: 30px;
+        width: 60px;
+        height: 60px;
+        background: var(--peach-main);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 30px;
+        text-decoration: none;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+      }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <a href="/home" class="nav-brand">
+        <img src="../static/icon.webp" alt="icon" />
+        <span>Mint Journeys</span>
+      </a>
+      <button class="btn-logout" onclick="handleLogout()">登出</button>
+    </nav>
+
+    <div class="header-section">
+      <div class="trip-summary">
+        <h1 id="trip-name" class="trip-title">載入中...</h1>
+        <div class="budget-card">
+          <span>總預算: <strong id="total-budget">0</strong></span>
+          <span>已花費: <strong id="spent-amount">0</strong></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="transaction-container" id="tx-list"></div>
+
+    <a href="#" id="fab-link" class="fab">+</a>
+
+    <script>
+      const tripId = window.location.pathname.split('/')[2];
+
+      async function loadDetail() {
+        const res = await fetch(`/api/trips/${tripId}`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        });
+        const data = await res.json();
+
+        document.getElementById('trip-name').textContent = data.trip.name;
+        document.getElementById('total-budget').textContent =
+          data.trip.budget + ' ' + data.trip.base_currency;
+
+        // 計算總額
+        const total = data.transactions.reduce((sum, t) => sum + t.amount, 0);
+        document.getElementById('spent-amount').textContent = total;
+
+        // 渲染列表
+        const list = document.getElementById('tx-list');
+        list.innerHTML = data.transactions
+          .map(
+            (t) => `
+            <div class="transaction-item">
+                <div class="tx-info">
+                    <h4>${t.description} (${t.category})</h4>
+                    <p>${t.transaction_date} | 記錄人: ${t.user}</p>
+                </div>
+                <div class="tx-amount">${t.amount} ${t.currency}</div>
+            </div>
+        `
+          )
+          .join('');
+
+        // 設定 FAB 跳轉連結
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentCurrencyId = urlParams.get('currency_id');
+        const targetCurrency = currentCurrencyId ? currentCurrencyId : 1;
+
+        document.getElementById('fab-link').href =
+          `/trip/${tripId}/new?currency_id=${targetCurrency}`;
+      }
+
+      loadDetail();
+
+      function handleLogout() {
+        if (confirm('確定要登出嗎？')) {
+          localStorage.removeItem('token');
+          window.location.href = '/';
+        }
+      }
+    </script>
+  </body>
+</html>

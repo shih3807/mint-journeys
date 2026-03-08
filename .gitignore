@@ -3,6 +3,7 @@
 .venv
 mint_journeys_venv/
 node_modules/
+frontend/mint-journeys
 
 # javascript
 node_modules/
