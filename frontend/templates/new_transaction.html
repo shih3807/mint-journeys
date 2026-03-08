@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mint Journeys</title>
+    <link rel="icon" href="../static/icon.webp" />
+
+    <link
+      href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Noto+Serif+TC:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --mint-light: #f7f4d5;
+        --mint-main: #839958;
+        --mint-dark: #0a3323;
+        --background: #f8f8f8;
+        --peach-main: #bb6830;
+        --rose: #d3968c;
+        --deep-teal: #105666;
+        --almost-black: #111a19;
+        --radius: 5px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background-color: var(--background);
+        font-family: 'Merriweather', 'Noto Serif TC', serif;
+        color: var(--almost-black);
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+      }
+
+      /* 導覽列 */
+      nav {
+        padding: 15px 20px;
+        display: flex;
+        align-items: center;
+        background: white;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03);
+      }
+      .back-btn {
+        text-decoration: none;
+        color: var(--mint-main);
+        font-weight: 700;
+        font-size: 14px;
+      }
+
+      /* 提示框 */
+      #notification {
+        position: fixed;
+        top: -100px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 15px 30px;
+        border-radius: var(--radius);
+        color: white;
+        z-index: 1000;
+        transition: top 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        min-width: 280px;
+        text-align: center;
+      }
+      .success {
+        background-color: var(--mint-main);
+      }
+      .error {
+        background-color: var(--rose);
+      }
+      .show {
+        top: 20px;
+      }
+
+      .container {
+        flex: 1;
+        max-width: 500px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 20px;
+      }
+
+      /* 金額輸入區 (大) */
+      .amount-section {
+        text-align: center;
+        margin: 20px 0 30px 0;
+      }
+      .amount-label {
+        font-size: 12px;
+        color: var(--mint-main);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 5px;
+      }
+      .amount-input-wrapper {
+        display: flex;
+        align-items: baseline;
+        justify-content: center;
+        gap: 10px;
+      }
+      .currency-symbol {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--peach-main);
+      }
+      #amount {
+        width: 80%;
+        border: none;
+        background: transparent;
+        font-size: 48px; /* 大大的輸入價格 */
+        font-family: 'Merriweather', serif;
+        color: var(--almost-black);
+        text-align: center;
+        outline: none;
+        border-bottom: 2px solid #eee;
+        transition: border-color 0.3s;
+      }
+      #amount:focus {
+        border-color: var(--peach-main);
+      }
+
+      /* 表單內容 */
+      .form-card {
+        background: white;
+        padding: 25px;
+        border-radius: var(--radius);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+      }
+
+      .field-group {
+        margin-bottom: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      label {
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--almost-black);
+      }
+
+      input,
+      select,
+      textarea {
+        padding: 12px;
+        border: 1.5px solid #eee;
+        border-radius: var(--radius);
+        font-family: inherit;
+        font-size: 16px;
+        outline: none;
+        background-color: #fff;
+      }
+
+      input:focus,
+      select:focus,
+      textarea:focus {
+        border-color: var(--mint-main);
+      }
+
+      textarea {
+        resize: none;
+        height: 80px;
+      }
+
+      .btn-save {
+        width: 100%;
+        background-color: var(--mint-main);
+        color: var(--mint-light);
+        border: none;
+        padding: 16px;
+        font-size: 18px;
+        font-weight: 700;
+        border-radius: var(--radius);
+        cursor: pointer;
+        margin-top: 10px;
+        transition: background 0.3s;
+      }
+
+      .btn-save:hover {
+        background-color: var(--mint-dark);
+      }
+
+      /* 檔案上傳樣式 */
+      .file-input-wrapper {
+        position: relative;
+        overflow: hidden;
+        display: inline-block;
+      }
+      .file-input-label {
+        display: block;
+        padding: 10px;
+        border: 1.5px dashed var(--mint-main);
+        text-align: center;
+        font-size: 14px;
+        color: var(--mint-main);
+        cursor: pointer;
+        border-radius: var(--radius);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="notification"></div>
+
+    <nav>
+      <a href="javascript:history.back()" class="back-btn">← 取消並返回</a>
+    </nav>
+
+    <div class="container">
+      <form id="transaction-form">
+        <div class="amount-section">
+          <div class="amount-label">金額 Amount</div>
+          <div class="amount-input-wrapper">
+            <span class="currency-symbol" id="display-currency-code">$</span>
+            <input
+              type="number"
+              id="amount"
+              step="0.01"
+              placeholder="0.00"
+              required
+            />
+          </div>
+        </div>
+
+        <div class="form-card">
+          <div class="field-group">
+            <label>消費名稱</label>
+            <input
+              type="text"
+              id="description"
+              placeholder="例如：森林手作麵包"
+              required
+            />
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px">
+            <div class="field-group">
+              <label>貨幣</label>
+              <select id="currency_id"></select>
+            </div>
+            <div class="field-group">
+              <label>類別</label>
+              <select id="category_id"></select>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label>消費日期</label>
+            <input type="date" id="transaction_date" />
+          </div>
+
+          <div class="field-group">
+            <label>筆記與圖片</label>
+            <textarea
+              id="note"
+              placeholder="記錄一下這筆花費的細節..."
+            ></textarea>
+            <!-- <div class="file-input-wrapper">
+                        <label class="file-input-label">＋ 上傳單據圖片</label>
+                        <input type="file" style="display: none;" accept="image/*">
+                    </div> -->
+          </div>
+
+          <button type="submit" class="btn-save">儲存消費紀錄</button>
+        </div>
+      </form>
+    </div>
+
+    <script>
+      // 從 URL 抓取參數
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlCurrencyId = urlParams.get('currency_id');
+      // 假設 ID 在路徑中 /trip/:id/new，這裡簡單示範抓取
+      const tripId = window.location.pathname.split('/')[2];
+
+      document.addEventListener('DOMContentLoaded', async () => {
+        // 設定今日日期為預設
+        document.getElementById('transaction_date').valueAsDate = new Date();
+
+        await Promise.all([fetchCurrencies(), fetchCategories()]);
+
+        // 根據網址參數設定預設貨幣
+        if (urlCurrencyId) {
+          const currencySelect = document.getElementById('currency_id');
+          currencySelect.value = urlCurrencyId;
+          updateCurrencySymbol();
+        }
+      });
+
+      async function fetchCurrencies() {
+        // 模擬 API 呼叫 /currencies/
+        const response = await fetch('/currencies/');
+        const result = await response.json();
+        console.log(result);
+
+        const select = document.getElementById('currency_id');
+        select.innerHTML = result.data
+          .map(
+            (c) =>
+              `<option value="${c.currency_id}" data-symbol="${c.currency_symbol}">${c.currency_name} (${c.currency_code})</option>`
+          )
+          .join('');
+
+        select.addEventListener('change', updateCurrencySymbol);
+      }
+
+      async function fetchCategories() {
+        //  API 呼叫 /categories/
+        const response = await fetch('/categories/');
+        const result = await response.json();
+        console.log(result);
+
+        const select = document.getElementById('category_id');
+        select.innerHTML = result.data
+          .map(
+            (cat) =>
+              `<option value="${cat.category_id}">${cat.category_name}</option>`
+          )
+          .join('');
+      }
+
+      function updateCurrencySymbol() {
+        const select = document.getElementById('currency_id');
+        const symbol =
+          select.options[select.selectedIndex].getAttribute('data-symbol');
+        document.getElementById('display-currency-code').textContent = symbol;
+      }
+
+      const notification = document.getElementById('notification');
+      function showMsg(msg, type = 'success') {
+        notification.textContent = msg;
+        notification.className = type + ' show';
+        setTimeout(() => notification.classList.remove('show'), 3000);
+      }
+
+      document
+        .getElementById('transaction-form')
+        .addEventListener('submit', async (e) => {
+          e.preventDefault();
+
+          const payload = {
+            trip_id: parseInt(tripId),
+            category_id: parseInt(document.getElementById('category_id').value),
+            amount: parseFloat(document.getElementById('amount').value),
+            currency_id: parseInt(document.getElementById('currency_id').value),
+            description: document.getElementById('description').value,
+            transaction_date: document.getElementById('transaction_date').value,
+          };
+
+          //  POST /api/transactions
+          // 取得 Token
+          const token = localStorage.getItem('token');
+
+          try {
+            console.log('正在送出消費紀錄：', payload);
+            //  API 呼叫
+            const res = await fetch('/api/transactions', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify(payload),
+            });
+            const result = await res.json();
+            console.log(result);
+            if (result.ok) {
+              showMsg('消費紀錄儲存成功！', 'success');
+              setTimeout(() => {
+                window.location.href = `/trip/${tripId}?currency_id=${urlCurrencyId}`;
+              }, 1500);
+            }
+            if (result.error) {
+              showMsg(result.message);
+            }
+          } catch (err) {
+            showMsg('建立失敗，請檢查欄位或連線');
+          }
+        });
+    </script>
+  </body>
+</html>
