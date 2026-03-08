@@ -1,9 +1,8 @@
 # Environments
 .env
 .venv
-mint_journeys_venv/
+mint-journeys-venv/
 node_modules/
-frontend/mint-journeys
 
 # javascript
 node_modules/
@@ -15,6 +14,7 @@ out/
 .prettierrc
 pyproject.toml
 .editorconfig
+.ruff_cache
 
 
 # Byte-compiled / optimized / DLL files
@@ -24,3 +24,8 @@ __pycache__/
 
 # macOS
 .DS_Store
+
+# test
+test.py
+frontend/mint-journeys
+
