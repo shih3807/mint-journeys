@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mint Journeys</title>
+    <link rel="icon" href="../static/icon.webp" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Noto+Serif+TC:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --mint-light: #f7f4d5;
+        --mint-main: #839958;
+        --mint-dark: #0a3323;
+        --background: #f8f8f8;
+        --peach-light: #f8d794;
+        --peach-main: #bb6830;
+        --rose: #d3968c;
+        --almost-black: #111a19;
+        --radius: 5px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background-color: var(--background);
+        font-family: 'Merriweather', 'Noto Serif TC', serif;
+        color: var(--almost-black);
+        padding: 20px;
+      }
+
+      /* 導覽列簡版 */
+      nav {
+        max-width: 600px;
+        margin: 0 auto 20px auto;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .back-link {
+        text-decoration: none;
+        color: var(--mint-main);
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      /* 提示框 (同上頁風格) */
+      #notification {
+        position: fixed;
+        top: -100px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 15px 30px;
+        border-radius: var(--radius);
+        color: white;
+        z-index: 1000;
+        transition: top 0.4s;
+        text-align: center;
+        min-width: 280px;
+      }
+      .error {
+        background-color: var(--rose);
+      }
+      .success {
+        background-color: var(--mint-dark);
+      }
+      .show {
+        top: 20px;
+      }
+
+      .form-card {
+        background: white;
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 30px;
+        border-radius: var(--radius);
+        box-shadow: 0 2px 15px rgba(0, 0, 0, 0.03);
+      }
+
+      h2 {
+        font-size: 24px;
+        color: var(--mint-dark);
+        margin-top: 0;
+        margin-bottom: 25px;
+        border-bottom: 2px solid var(--mint-light);
+        padding-bottom: 10px;
+      }
+
+      .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+      }
+
+      .field-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 15px;
+      }
+
+      .full-width {
+        grid-column: span 2;
+      }
+
+      label {
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      input,
+      select {
+        padding: 12px;
+        border: 1.5px solid #eee;
+        border-radius: var(--radius);
+        font-family: inherit;
+        font-size: 16px;
+        outline: none;
+        background-color: #fff;
+      }
+
+      input:focus,
+      select:focus {
+        border-color: var(--mint-main);
+        background-color: #fdfdfa;
+      }
+
+      .btn-submit {
+        grid-column: span 2;
+        background-color: var(--mint-main);
+        color: var(--mint-light);
+        border: none;
+        padding: 15px;
+        font-size: 16px;
+        font-weight: 700;
+        border-radius: var(--radius);
+        cursor: pointer;
+        margin-top: 10px;
+        transition: 0.3s;
+      }
+
+      .btn-submit:hover {
+        background-color: var(--mint-dark);
+      }
+
+      @media (max-width: 600px) {
+        .form-grid {
+          grid-template-columns: 1fr;
+        }
+        .full-width {
+          grid-column: span 1;
+        }
+        .btn-submit {
+          grid-column: span 1;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="notification"></div>
+
+    <nav>
+      <a href="/home" class="back-link">← 返回首頁</a>
+    </nav>
+
+    <div class="form-card">
+      <h2>開啟新旅程</h2>
+
+      <form id="trip-form" class="form-grid">
+        <div class="field-group full-width">
+          <label for="name">行程名稱 *</label>
+          <input
+            type="text"
+            id="name"
+            placeholder="例如：北歐森林漫遊"
+            required
+          />
+        </div>
+
+        <div class="field-group full-width">
+          <label for="member_email">共同編輯者 Email (選填)</label>
+          <input
+            type="email"
+            id="member_email"
+            placeholder="friend@example.com"
+          />
+        </div>
+
+        <div class="field-group">
+          <label for="base_currency">預算幣別</label>
+          <select id="base_currency">
+            <option value="">載入中...</option>
+          </select>
+        </div>
+
+        <div class="field-group">
+          <label for="budget">預算金額</label>
+          <input type="number" id="budget" placeholder="0.00" />
+        </div>
+
+        <div class="field-group">
+          <label for="start_date">開始日期</label>
+          <input type="date" id="start_date" />
+        </div>
+
+        <div class="field-group">
+          <label for="end_date">結束日期</label>
+          <input type="date" id="end_date" />
+        </div>
+
+        <button type="submit" class="btn-submit">建立行程</button>
+      </form>
+    </div>
+
+    <script>
+      // 頁面載入時取得下拉選單資料
+      document.addEventListener('DOMContentLoaded', () => {
+        fetchCurrencies();
+      });
+
+      async function fetchCurrencies() {
+        try {
+          //  API 請求
+          const response = await fetch('/currencies/');
+          const result = await response.json();
+          console.log(result);
+
+          const select = document.getElementById('base_currency');
+          select.innerHTML = result.data
+            .map(
+              (curr) =>
+                `<option value="${curr.currency_code}">${curr.currency_name} (${curr.currency_code})</option>`
+            )
+            .join('');
+        } catch (err) {
+          console.error('無法取得貨幣清單', err);
+        }
+      }
+
+      const notification = document.getElementById('notification');
+      function showMsg(msg, isSuccess = false) {
+        notification.textContent = msg;
+        notification.className = isSuccess ? 'success show' : 'error show';
+        setTimeout(() => notification.classList.remove('show'), 3000);
+      }
+
+      document
+        .getElementById('trip-form')
+        .addEventListener('submit', async (e) => {
+          e.preventDefault();
+
+          const formData = {
+            name: document.getElementById('name').value,
+            member_email: document.getElementById('member_email').value || null,
+            base_currency: document.getElementById('base_currency').value,
+            budget: parseFloat(document.getElementById('budget').value) || 0,
+            start_date: document.getElementById('start_date').value || null,
+            end_date: document.getElementById('end_date').value || null,
+          };
+
+          // 取得 Token
+          const token = localStorage.getItem('token');
+
+          try {
+            console.log('送出資料：', formData);
+            //  API 呼叫
+            const res = await fetch('/api/trips', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify(formData),
+            });
+            const result = await res.json();
+
+            if (result.ok) {
+              showMsg('成功建立新行程！', true);
+              setTimeout(() => (window.location.href = '/home'), 1500);
+            }
+            if (result.error) {
+              showMsg(result.message);
+            }
+          } catch (err) {
+            showMsg('建立失敗，請檢查欄位或連線');
+          }
+        });
+    </script>
+  </body>
+</html>
