@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 from database import Base, engine, get_db
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -29,6 +30,15 @@ from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "https://mintjourneys.com"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 Base.metadata.drop_all(bind=engine)  # TODO:樣式確定後刪除
 Base.metadata.create_all(bind=engine)  # 建置資料表
 insert_test_data()  # 預設資料
@@ -266,7 +276,12 @@ def get_trips(request: Request, db: Session = Depends(get_db)):
         # 取得旅程資料
         creator_trips = (
             db.query(
-                Trip.id, Trip.name, Trip.start_date, Trip.end_date, Trip.base_currency,Currency.id.label("currency_id")
+                Trip.id,
+                Trip.name,
+                Trip.start_date,
+                Trip.end_date,
+                Trip.base_currency,
+                Currency.id.label("currency_id"),
             )
             .join(Currency, Trip.base_currency == Currency.code, isouter=True)
             .filter(Trip.created_by == user_id)
@@ -275,7 +290,12 @@ def get_trips(request: Request, db: Session = Depends(get_db)):
 
         member_trips = (
             db.query(
-                Trip.id, Trip.name, Trip.start_date, Trip.end_date, Trip.base_currency, Currency.id.label("currency_id") 
+                Trip.id,
+                Trip.name,
+                Trip.start_date,
+                Trip.end_date,
+                Trip.base_currency,
+                Currency.id.label("currency_id"),
             )
             .join(Currency, Trip.base_currency == Currency.code, isouter=True)
             .join(TripMember)
@@ -290,9 +310,9 @@ def get_trips(request: Request, db: Session = Depends(get_db)):
                 "start_date": start_date.isoformat() if start_date else None,
                 "end_date": end_date.isoformat() if end_date else None,
                 "currency": currency,
-                "currency_id": currency_id, 
+                "currency_id": currency_id,
             }
-            for id, name, start_date, end_date, currency,  currency_id in creator_trips
+            for id, name, start_date, end_date, currency, currency_id in creator_trips
         ]
 
         member_result = [

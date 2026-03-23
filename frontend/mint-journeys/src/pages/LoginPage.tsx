@@ -1,60 +1,35 @@
-import colors from '../styles/color';
-import titleImage from '../assets/title.webp';
+import {
+  Button,
+  Text,
+  Container,
+  Anchor,
+  Box,
+  Image
+} from '@mantine/core';
+import { useNavigate } from "react-router";
+import title from "../assets/title.webp";
 
-const styles = {
-  container: {
-    display: 'flex',
-    width: '100%',
-    flexDirection: 'column' as const,
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: '100vh',
-    fontFamily: 'sans-serif',
-    gap: '24px',
-  },
-  title: {
-    width: 'calc(100% - 20px)',
-    maxWidth: '400px',
-    marginBottom: '10px',
-  },
-  loginBtn: {
-    padding: '12px 40px',
-    backgroundColor: colors.primary.main,
-    width:'300px',
-    color: colors.backgrand,
-    border: 'none',
-    borderRadius: '5px',
-    fontSize: '16px',
-    cursor: 'pointer',
-    marginBottom: '15px',
-  },
-  registerLink: {
-    color: colors.accent.black,
-    fontSize: '14px',
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    textDecoration: 'underline',
-  },
-};
 
-export default function LoginPage() {
-  // 這裡可以加入邏輯，例如點擊後的動作
-  const handleLogin = () => {
-    alert('正在進入你的旅行帳本...');
-  };
-
+export function LoginPage() {
+  const navigate = useNavigate();
   return (
-    <div style={styles.container}>
-      <img src={titleImage} style={styles.title}></img>
+    <Box
+      style={{ minHeight: '100vh', display: 'flex', alignItems: 'center' }}
+    >
+      <Container size={420}>
+        <Image src={title} w={300} />
 
-      <button style={styles.loginBtn} onClick={handleLogin}>
-        登入
-      </button>
+        <Button w="280" size="md" mt="xl" color="primary" onClick={()=>navigate("/auth?type=login")}>
+          登入
+        </Button>
 
-      <button style={styles.registerLink} onClick={() => alert('前往註冊頁面')}>
-        還沒有帳號？立即註冊
-      </button>
-    </div>
+        <Text ta="center" mt="md" size="sm" c="dimmed">
+          還沒有帳號嗎？{' '}
+          <Anchor component="button" fw={700} c="secondary.6" onClick={()=>navigate("/auth?type=register")}>
+            立即註冊
+          </Anchor>
+        </Text>
+      </Container>
+    </Box>
   );
 }

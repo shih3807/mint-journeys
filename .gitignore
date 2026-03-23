@@ -8,7 +8,7 @@ node_modules/
 node_modules/
 dist/
 out/
-*.js
+
 
 # editor
 .prettierrc

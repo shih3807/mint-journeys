@@ -1,193 +1,204 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import {
+  TextInput,
+  PasswordInput,
+  Button,
+  Paper,
+  Text,
+  Container,
+  Stack,
+  Anchor,
+  Box,
+  Title,
+  Image,
+} from '@mantine/core';
+import { useState } from 'react';
+import { useSearchParams } from 'react-router';
+import { useForm } from '@mantine/form';
+import { notifications } from '@mantine/notifications';
+import icon from '../assets/icon.webp';
 
-// 1. 定義提示訊息的型別
-interface Alert {
-  show: boolean;
-  message: string;
-  type: 'error' | 'success';
-}
-
-const AuthPage = () => {
-  const navigate = useNavigate();
-  // 切換模式：'login' 或 'register'
-  const [mode, setMode] = useState<'login' | 'register'>('login');
-
-  // 表單資料狀態
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-  });
-
-  // 提示框狀態
-  const [alert, setAlert] = useState<Alert>({
-    show: false,
-    message: '',
-    type: 'error',
-  });
-
-  // 自動關閉提示框
-  useEffect(() => {
-    if (alert.show) {
-      const timer = setTimeout(() => setAlert({ ...alert, show: false }), 3000);
-      return () => clearTimeout(timer);
-    }
-  });
-
-  // 處理輸入變更 (TypeScript 會幫你檢查 e 的型別)
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+export function AuthPage() {
+  // 狀態切換
+  const [searchParams] = useSearchParams();
+  const mode = searchParams.get('type');
+  const [type, setType] = useState(mode === 'login' ? 'login' : 'register');
+  const toggle = () => {
+    setType((prev) => (prev === 'login' ? 'register' : 'login'));
   };
 
-  const handleSubmit = async () => {
-    // 前端簡易檢查
-    if (!formData.email.includes('@')) {
-      setAlert({ show: true, message: '請輸入有效的電子信箱', type: 'error' });
-      return;
-    }
-    if (formData.password.length < 6) {
-      setAlert({ show: true, message: '密碼長度需至少 6 位', type: 'error' });
-      return;
-    }
+  // 表格設定
+  const form = useForm({
+    initialValues: {
+      email: 'test@test.com',
+      name: '測試帳號',
+      password: 'test123',
+    },
 
-    // 模擬 API 呼叫
-    const apiUrl = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
-    console.log(`正在發送請求至: ${apiUrl}`, formData);
+    validate: {
+      email: (email: string) => {
+        if (!email.trim()) {
+          return '請輸入電子信箱';
+        }
+        if (
+          !/^\w+((-\w+)|(\.\w+))*@[A-Za-z0-9]+((\.|-)[A-Za-z0-9]+)*\.[A-Za-z]+$/.test(
+            email
+          )
+        ) {
+          return '請輸入正確的信箱格式';
+        }
+        return null;
+      },
+      password: (password: string) => (!password.trim() ? '請輸入密碼' : null),
+      name: (name: string) =>
+        type === 'register' && !name.trim() ? '請輸入姓名' : null,
+    },
+  });
 
-    if (mode === 'login') {
-      // 登入成功 -> 導向首頁
-      navigate('/home');
-    } else {
-      // 註冊成功 -> 顯示綠色提示，不跳頁
-      setAlert({
-        show: true,
-        message: '註冊成功！請切換至登入頁面',
-        type: 'success',
+  // 送出表單
+  const handleAuthSubmit = async (values: typeof form.values) => {
+    // 登入
+    try {
+      if (type === 'login') {
+        const data = JSON.stringify({
+          email: values.email,
+          password: values.password,
+        });
+        try {
+          const loginAPI = 'http://localhost:8000/api/auth/login';
+          const res = await fetch(loginAPI, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: data,
+          });
+          const result = await res.json();
+
+          if (result.error) {
+            notifications.show({
+              message: result.message,
+              color: 'accent-red.5',
+            });
+          } else {
+            localStorage.setItem('token', result.token);
+            notifications.show({
+              message: '登入成功，正在導向...',
+              color: 'primary.6',
+            });
+            // setTimeout(() => (window.location.href = '/home'), 1500);
+          }
+        } catch (error) {
+          notifications.show({
+            message: '伺服器連線失敗，請稍後再試',
+            color: 'accent-red.5',
+          });
+          console.log('loginError:', error);
+        }
+        // 註冊
+      } else {
+        const data = JSON.stringify({
+          name: values.name,
+          email: values.email,
+          password: values.password,
+        });
+        try {
+          const loginAPI = 'http://localhost:8000/api/auth/register';
+          const res = await fetch(loginAPI, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: data,
+          });
+          const result = await res.json();
+
+          if (result.error) {
+            notifications.show({
+              message: result.message,
+              color: 'accent-red.5',
+            });
+          } else {
+            notifications.show({
+              message: '註冊成功！請返回登入',
+              color: 'primary.6',
+            });
+            toggle();
+          }
+        } catch (error) {
+          notifications.show({
+            message: '伺服器連線失敗，請稍後再試',
+            color: 'accent-red.5',
+          });
+          console.log('loginError:', error);
+        }
+      }
+    } catch (error) {
+      notifications.show({
+        message: '伺服器連線失敗，請稍後再試',
+        color: 'accent-red.5',
       });
+      console.log('authError:', error);
     }
   };
 
   return (
-    <div style={containerStyle}>
-      {/* 頂部滑落提示框 */}
-      <div
-        style={{
-          ...alertStyle,
-          transform: alert.show ? 'translateY(0)' : 'translateY(-100px)',
-          backgroundColor: alert.type === 'error' ? '#e57373' : '#81c784',
-        }}
-      >
-        {alert.message}
-      </div>
+    <Box style={{ minHeight: '100vh', display: 'flex', alignItems: 'center' }}>
+      <Container size={700}>
+        <Paper w={400} p="xl" withBorder shadow="sm">
+          <Stack align="center" mb="xl">
+            <Image src={icon} w={60} />
+            <Title order={2} c="primary.9">
+              {type === 'login' ? '登入系統' : '建立新帳號'}
+            </Title>
+          </Stack>
 
-      <div style={cardStyle}>
-        <h2 style={{ color: '#2d5a5a' }}>
-          {mode === 'login' ? '登入' : '加入 MintJourney'}
-        </h2>
+          <form onSubmit={form.onSubmit((values) => handleAuthSubmit(values))}>
+            <Stack>
+              {type === 'register' && (
+                <TextInput
+                  label="姓名"
+                  placeholder="您的姓名"
+                  size="md"
+                  {...form.getInputProps('name')}
+                />
+              )}
 
-        {mode === 'register' && (
-          <input
-            name="name"
-            placeholder="姓名"
-            style={inputStyle}
-            onChange={handleChange}
-          />
-        )}
+              <TextInput
+                label="電子信箱"
+                placeholder="測試帳號：test@test.com"
+                size="md"
+                {...form.getInputProps('email')}
+              />
 
-        <input
-          name="email"
-          type="email"
-          placeholder="信箱"
-          style={inputStyle}
-          onChange={handleChange}
-        />
+              <PasswordInput
+                label="密碼"
+                placeholder="測試密碼：test123"
+                size="md"
+                {...form.getInputProps('password')}
+              />
+            </Stack>
 
-        <input
-          name="password"
-          type="password"
-          placeholder="密碼"
-          style={inputStyle}
-          onChange={handleChange}
-        />
+            <Button fullWidth size="md" mt="xl" color="primary" type="submit">
+              {type === 'login' ? '登入' : '註冊'}
+            </Button>
+          </form>
 
-        <button style={btnStyle} onClick={handleSubmit}>
-          {mode === 'login' ? '登入' : '註冊'}
-        </button>
-
-        <p
-          style={toggleLinkStyle}
-          onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
-        >
-          {mode === 'login' ? '沒有帳號？立即註冊' : '已有帳號？返回登入'}
-        </p>
-      </div>
-    </div>
+          <Box ta="center" mt="xl">
+            <Text size="md" c="dimmed" display="inline">
+              {type === 'login' ? '還沒有帳號嗎？' : '已經有帳號了？'}
+            </Text>
+            <Anchor
+              component="button"
+              type="button"
+              fw={700}
+              c="secondary.6"
+              ml={5}
+              onClick={() => {
+                toggle();
+                form.reset();
+              }}
+            >
+              {type === 'login' ? '立即註冊' : '返回登入'}
+            </Anchor>
+          </Box>
+        </Paper>
+      </Container>
+    </Box>
   );
-};
-
-// 樣式設定
-const containerStyle: React.CSSProperties = {
-  height: '100vh',
-  display: 'flex',
-  justifyContent: 'center',
-  alignItems: 'center',
-  backgroundColor: '#f0f4f0',
-  overflow: 'hidden',
-};
-
-const alertStyle: React.CSSProperties = {
-  position: 'fixed',
-  top: '20px',
-  left: '0',
-  right: '0',
-  margin: 'auto',
-  width: '300px',
-  padding: '15px',
-  color: 'white',
-  borderRadius: '8px',
-  textAlign: 'center',
-  transition: 'transform 0.5s ease',
-  zIndex: 1000,
-  fontWeight: 'bold',
-};
-
-const cardStyle: React.CSSProperties = {
-  width: '320px',
-  padding: '40px',
-  backgroundColor: 'white',
-  borderRadius: '20px',
-  textAlign: 'center',
-  boxShadow: '0 10px 25px rgba(0,0,0,0.05)',
-};
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '12px',
-  marginBottom: '15px',
-  borderRadius: '8px',
-  border: '1px solid #e0e6e0',
-  outline: 'none',
-  boxSizing: 'border-box',
-};
-
-const btnStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '12px',
-  backgroundColor: '#4a8c8c',
-  color: 'white',
-  border: 'none',
-  borderRadius: '25px',
-  cursor: 'pointer',
-  marginTop: '10px',
-};
-
-const toggleLinkStyle: React.CSSProperties = {
-  color: '#88a0a0',
-  fontSize: '13px',
-  marginTop: '20px',
-  cursor: 'pointer',
-  textDecoration: 'underline',
-};
-
-export default AuthPage;
+}
