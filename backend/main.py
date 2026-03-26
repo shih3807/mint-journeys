@@ -101,6 +101,7 @@ def register_user(request: Request, data: SingupRequest, db: Session = Depends(g
         email = data.email.lower()
         password = data.password
 
+        # 確認信箱是否重複
         email_exists = db.query(User.email).filter(User.email == email).first()
         if email_exists:
             return JSONResponse(
@@ -108,6 +109,7 @@ def register_user(request: Request, data: SingupRequest, db: Session = Depends(g
                 content={"error": True, "message": "註冊失敗，重複的電子信箱"},
             )
 
+        # 雜湊密碼
         hash_password = bcrypt.hashpw(
             password.encode("utf-8"), bcrypt.gensalt()
         ).decode("utf-8")
@@ -115,6 +117,22 @@ def register_user(request: Request, data: SingupRequest, db: Session = Depends(g
         user = User(email=email, hash_password=hash_password, name=name)
 
         db.add(user)
+        db.flush()
+
+        # 生成會員頭貼
+        avator = ImageService.generate_avatar(name)
+        if avator:
+            image_name = ImageService.avatar_image_name(user.id)
+            saved = ImageService.save_image(image_name, avator)
+
+            if not saved:
+                return JSONResponse(
+                    status_code=500,
+                    content={"error": True, "message": "伺服器發生錯誤，存取失敗"},
+                )
+
+            user.avatar_filename = saved
+
         db.commit()
         db.refresh(user)
 
@@ -168,8 +186,6 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
 
 
 # 旅程系統
-
-
 @app.post("/api/trips")
 def create_trip(
     request: Request, data: CreateTripRequest, db: Session = Depends(get_db)
@@ -457,7 +473,8 @@ def upload_trip_image(
 
     db.commit()
 
-    return {"ok":True}
+    return {"ok": True}
+
 
 @app.delete("/trips/{trip_id}/image")
 def delete_trip_image(trip_id: int, db: Session = Depends(get_db)):
@@ -470,7 +487,7 @@ def delete_trip_image(trip_id: int, db: Session = Depends(get_db)):
         )
 
     if not trip.image_filename:
-        return  {"ok": True}
+        return {"ok": True}
 
     ImageService.delete_image(trip.image_filename)
 
@@ -534,8 +551,6 @@ async def get_currencies(db: Session = Depends(get_db)):
 
 
 # 消費紀錄
-
-
 @app.post("/api/transactions")
 def create_transaction(
     request: Request,
@@ -620,3 +635,116 @@ def create_transaction(
 #     db.commit()
 
 #     return {"message": "expense deleted"}
+
+
+# 消費紀錄圖片
+@app.post("/transactions/{transaction_id}/image")
+def upload_transaction_image(
+    request: Request,
+    transaction_id: int,
+    file: UploadFile = Form(...),
+    db: Session = Depends(get_db),
+):
+
+    try:
+        # 驗證是否登入
+        auth_header = request.headers.get("Authorization")
+
+        if not auth_header:
+            return JSONResponse(
+                status_code=403,
+                content={"error": True, "message": "未登入系統，拒絕存取"},
+            )
+
+        # 取得user_id
+        secret = os.environ.get("TOKEN_SECRET")
+        token = auth_header.split(" ")[1]
+        payload = jwt.decode(token, secret, algorithms="HS256")
+        user_id = payload["id"]
+        if not user_id:
+            return JSONResponse(
+                status_code=403,
+                content={"error": True, "message": "未登入系統，拒絕存取"},
+            )
+
+        transaction = db.get(Transaction, transaction_id)
+
+        if transaction is None:
+            return JSONResponse(
+                status_code=400, content={"error": True, "message": "該交易不存在"}
+            )
+
+        filename = ImageService.transaction_image_name(
+            transaction.trip_id,
+            user_id,
+        )
+
+        webp = ImageService.convert_to_webp(file.file)
+
+        saved = ImageService.save_image(filename, webp)
+
+        if not saved:
+            return JSONResponse(
+                status_code=500,
+                content={"error": True, "message": "伺服器發生錯誤，存取失敗"},
+            )
+
+        transaction.image_filename = filename
+
+        db.commit()
+
+        return {"ok": True}
+    except Exception as e:
+        print(e)
+        raise
+
+@app.delete("/transactions/{transaction_id}/image")
+def delete_transaction_image(
+    request: Request,
+    transaction_id: int,
+    db: Session = Depends(get_db),
+):
+
+    try:
+        # 驗證是否登入
+        auth_header = request.headers.get("Authorization")
+
+        if not auth_header:
+            return JSONResponse(
+                status_code=403,
+                content={"error": True, "message": "未登入系統，拒絕存取"},
+            )
+
+        # 取得user_id
+        secret = os.environ.get("TOKEN_SECRET")
+        token = auth_header.split(" ")[1]
+        payload = jwt.decode(token, secret, algorithms="HS256")
+        user_id = payload["id"]
+        if not user_id:
+            return JSONResponse(
+                status_code=403,
+                content={"error": True, "message": "未登入系統，拒絕存取"},
+            )
+
+        transaction = db.get(Transaction, id)
+
+        if transaction is None:
+            return JSONResponse(
+                status_code=400, content={"error": True, "message": "該交易不存在"}
+            )
+
+        if not transaction.image_filename:
+            return {"ok": True}
+
+        ImageService.delete_image(
+            transaction.image_filename
+        )
+
+        transaction.image_filename = None
+
+        db.commit()
+
+        return {"ok": True}
+    except Exception as e:
+        print(e)
+        raise

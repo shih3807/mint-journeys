@@ -4,9 +4,11 @@ from botocore.client import BaseClient
 from dotenv import load_dotenv
 import os
 import time
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
 from typing import BinaryIO
+import random
+
 
 
 load_dotenv()
@@ -14,6 +16,19 @@ load_dotenv()
 
 class ImageService:
     s3_client: BaseClient | None = None
+
+    AVATAR_BG_COLORS = [
+        "#f7f4d5",
+        "#eef2c2",
+        "#e4efad",
+        "#daeb97",
+        "#afc584",
+        "#9ab665",
+        "#839958",
+        "#6a7c47",
+        "#515e36",
+        "#0a3323",
+    ]
 
     @classmethod
     def get_s3_client(cls) -> BaseClient:
@@ -126,6 +141,48 @@ class ImageService:
         """
         return f"avatars/{user_id}.webp"
 
+    @classmethod
+    def generate_avatar(cls,name: str, size: int = 128) -> BytesIO|None:
+        """
+        生成固定顏色範圍的頭貼，名字首字母置中。
+
+        Args:
+            name: 使用者名字
+            size: 圖片尺寸 (px)
+
+        Returns:
+            成功：頭貼圖片webp檔 
+            失敗：None
+        """
+
+        text = name[0].upper() if name else "?"
+
+        bg_color = random.choice(cls.AVATAR_BG_COLORS)
+
+        text_color = "#f8f8f8"
+
+        img = Image.new("RGB", (size, size), color=bg_color)
+        draw = ImageDraw.Draw(img)
+        if not draw:
+            return None
+   
+        font_path = "../fonts/Merriweather.ttf"
+        font = ImageFont.truetype(font_path, int(size / 2))
+        
+        if not font:
+            font = ImageFont.load_default()
+
+        bbox = draw.textbbox((0, 0), text, font=font)
+        w = bbox[2] - bbox[0]  
+        h = bbox[3] - bbox[1]  
+        draw.text(((size - w) / 2, (size - h) / 2), text, font=font, fill=text_color)
+
+        
+        buffer = BytesIO()
+        img.save(buffer, format="WEBP")
+        buffer.seek(0)
+        return buffer
+
     @staticmethod
     def convert_to_webp(file: BinaryIO) -> BytesIO:
         """
@@ -141,9 +198,9 @@ class ImageService:
         buffer.seek(0)
 
         return buffer
-    
+
     @classmethod
-    def delete_image(cls, file_name: str)->bool:
+    def delete_image(cls, file_name: str) -> bool:
         """
         刪除圖片
 
