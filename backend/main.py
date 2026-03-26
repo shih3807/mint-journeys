@@ -10,7 +10,7 @@ from fastapi import (
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from database import Base, engine, get_db
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select, delete
 from typing import List, Any
 from pydantic import EmailStr
@@ -31,6 +31,7 @@ from models.schemas import (
     SingupRequest,
     LoginRequest,
     CreateTripRequest,
+    UpdateTripRequest,
     TransactionCreate,
     UserExists,
 )
@@ -229,11 +230,11 @@ def email_exists(request: Request, data: UserExists, db: Session = Depends(get_d
                 status_code=200,
                 content={"ok": True, "message": "該用戶存在"},
             )
-        
+
         return JSONResponse(
-                status_code=404,
-                content={"error": True, "message": "該用戶不存在"},
-            )
+            status_code=404,
+            content={"error": True, "message": "該用戶不存在"},
+        )
 
     except Exception as e:
         print(e)
@@ -266,21 +267,10 @@ def create_trip(
                 content={"error": True, "message": "未登入系統，拒絕存取"},
             )
 
-        # 先檢查 member email
-        def ckeck_member_exists(member_email):
-            if member_email:
-                member_user_id = (
-                    db.query(User.id).filter(User.email == member_email).scalar()
-                )
-
-                if member_user_id:
-                    return member_user_id
-                return False
-
         # 建立 trip
         trip = Trip(
             name=data.name,
-            base_currency=data.base_currency,
+            base_currency_id=data.base_currency_id,
             budget=data.budget,
             start_date=data.start_date,
             end_date=data.end_date,
@@ -294,18 +284,42 @@ def create_trip(
         creator_member = TripMember(trip_id=trip.id, user_id=user_id)
         db.add(creator_member)
 
+        # 檢查 member email
+        def ckeck_member_exists(member_email):
+            if member_email:
+                member_exists = db.execute(
+                    select(User).where(User.email == member_email)
+                ).scalar_one_or_none()
+
+                if member_exists:
+                    return member_exists.id
+                return False
+
         # 如果有共同編輯者
-        if data.member_email:
-            member_id = ckeck_member_exists(data.member_email)
+        if data.member_emails:
+            # 針對每一個共同編輯者做處理
+            for email in data.member_emails:
+                member_id = ckeck_member_exists(email)
 
-            if not member_id:
-                return JSONResponse(
-                    status_code=401,
-                    content={"error": True, "message": "共同編輯者不存在"},
+                if not member_id:
+                    return JSONResponse(
+                        status_code=401,
+                        content={
+                            "error": True,
+                            "message": f"新增行程失敗，{email} 不存在",
+                        },
+                    )
+
+                member = TripMember(trip_id=trip.id, user_id=member_id)
+                db.add(member)
+
+                # 新增通知
+                db.add(
+                    Notification(
+                        user_id=member_id,
+                        message=f"{payload['name']} 將你加入行程：{trip.name}",
+                    )
                 )
-
-            member = TripMember(trip_id=trip.id, user_id=member_id)
-            db.add(member)
 
         # 一起 commit
         db.commit()
@@ -346,117 +360,215 @@ def get_trips(request: Request, db: Session = Depends(get_db)):
             )
 
         # 取得旅程資料
-        creator_trips = (
-            db.query(
-                Trip.id,
-                Trip.name,
-                Trip.start_date,
-                Trip.end_date,
-                Trip.base_currency,
-                Currency.id.label("currency_id"),
-            )
-            .join(Currency, Trip.base_currency == Currency.code, isouter=True)
-            .filter(Trip.created_by == user_id)
-            .all()
+        stmt = (
+            select(Trip)
+            .options(selectinload(Trip.currency))
+            .options(selectinload(Trip.members))
+            .join(Trip.members)
+            .where(TripMember.user_id == user_id)
         )
+        all_trips = db.execute(stmt).scalars().all()
 
-        member_trips = (
-            db.query(
-                Trip.id,
-                Trip.name,
-                Trip.start_date,
-                Trip.end_date,
-                Trip.base_currency,
-                Currency.id.label("currency_id"),
-            )
-            .join(Currency, Trip.base_currency == Currency.code, isouter=True)
-            .join(TripMember)
-            .filter(TripMember.user_id == user_id, Trip.created_by != user_id)
-            .all()
-        )
+        # 分類行程
+        my_trips = []
+        shared_trips = []
 
-        creator_result = [
-            {
-                "id": id,
-                "name": name,
-                "start_date": start_date.isoformat() if start_date else None,
-                "end_date": end_date.isoformat() if end_date else None,
-                "currency": currency,
-                "currency_id": currency_id,
+        for trip in all_trips:
+            if len(trip.members) == 1:
+                my_trips.append(trip)
+            else:
+                shared_trips.append(trip)
+
+        def trip_to_dict(trip: Trip):
+            return {
+                "id": trip.id,
+                "name": trip.name,
+                "start_date": trip.start_date.isoformat() if trip.start_date else None,
+                "end_date": trip.end_date.isoformat() if trip.end_date else None,
+                "currency": trip.currency.code if trip.currency else None,
+                "currency_id": trip.currency.id if trip.currency else None,
+                "budget": trip.budget,
+                "image_filename": ImageService.file_url(trip.image_filename)
+                if (trip.image_filename)
+                else None,
             }
-            for id, name, start_date, end_date, currency, currency_id in creator_trips
-        ]
-
-        member_result = [
-            {
-                "id": id,
-                "name": name,
-                "start_date": start_date.isoformat() if start_date else None,
-                "end_date": end_date.isoformat() if end_date else None,
-                "currency": currency,
-                "currency_id": currency_id,
-            }
-            for id, name, start_date, end_date, currency, currency_id in member_trips
-        ]
 
         return JSONResponse(
             status_code=200,
             content={
                 "ok": True,
-                "data": {"trips": creator_result, "shareTrips": member_result},
+                "data": {
+                    "trips": [trip_to_dict(trip) for trip in my_trips],
+                    "shareTrips": [trip_to_dict(trip) for trip in shared_trips],
+                },
             },
         )
+
     except Exception as e:
         print(e)
         raise
 
 
 @app.get("/api/trips/{trip_id}")
-def get_trip(trip_id: int, db: Session = Depends(get_db)):
+def get_trip(request: Request, trip_id: int, db: Session = Depends(get_db)):
 
-    trip = db.query(Trip).filter(Trip.id == trip_id).first()
+    try:
+        # 驗證是否登入
+        auth_header = request.headers.get("Authorization")
 
-    if not trip:
-        return JSONResponse(
-            status_code=404,
-            content={"error": True, "message": "Trip not found"},
+        if not auth_header:
+            return JSONResponse(
+                status_code=403,
+                content={"error": True, "message": "未登入系統，拒絕存取"},
+            )
+
+        trip = db.get(Trip, trip_id)
+
+        if not trip:
+            return JSONResponse(
+                status_code=404,
+                content={"error": True, "message": "旅程不存在"},
+            )
+
+        stmt = (
+            select(Transaction)
+            .options(
+                selectinload(Transaction.category),
+                selectinload(Transaction.user),
+                selectinload(Transaction.currency),
+            )
+            .where(Transaction.trip_id == trip_id)
+            .order_by(Transaction.transaction_date.desc())
         )
 
-    transactions = (
-        db.query(
-            Transaction,
-            Category.name.label("category_name"),
-            User.name.label("user_name"),
-        )
-        .join(Category, Transaction.category_id == Category.id, isouter=True)
-        .join(User, Transaction.user_id == User.id)
-        .filter(Transaction.trip_id == trip_id)
-        .order_by(Transaction.transaction_date.desc())
-        .all()
-    )
-    return {
-        "trip": {
-            "id": trip.id,
-            "name": trip.name,
-            "base_currency": trip.base_currency,
-            "budget": trip.budget,
-            "start_date": trip.start_date,
-            "end_date": trip.end_date,
-            "created_by": trip.created_by,
-        },
-        "transactions": [
+        transactions = db.execute(stmt).scalars().all()
+
+        trip_data = (
             {
-                "id": t.id,
-                "amount": t.amount,
-                "currency": t.currency,
-                "description": t.description,
-                "transaction_date": t.transaction_date,
-                "category": category_name,
-                "user": user_name,
-            }
-            for t, category_name, user_name in transactions
-        ],
-    }
+                "id": trip.id,
+                "name": trip.name,
+                "base_currency": trip.base_currency,
+                "image_filename": ImageService.file_url(trip.image_filename)
+                if (trip.image_filename)
+                else None,
+                "budget": trip.budget,
+                "start_date": trip.start_date,
+                "end_date": trip.end_date,
+                "created_by": trip.created_by,
+            },
+        )
+
+        transactions_data = (
+            [
+                {
+                    "id": t.id,
+                    "amount": t.amount,
+                    "currency": t.currency.code,
+                    "description": t.description,
+                    "transaction_date": t.transaction_date,
+                    "category": t.category.name,
+                    "user": t.user.name,
+                }
+                for t in transactions
+            ],
+        )
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "ok": True,
+                "data": {
+                    "trip": trip_data,
+                    "transactions": transactions_data,
+                },
+            },
+        )
+
+    except Exception as e:
+        print(e)
+        raise
+
+
+@app.patch("/api/trips/{trip_id}")
+def update_trip(
+    trip_id: int,
+    request: Request,
+    data: UpdateTripRequest,
+    db: Session = Depends(get_db),
+):
+
+    try:
+        # 驗證是否登入
+        auth_header = request.headers.get("Authorization")
+
+        if not auth_header:
+            return JSONResponse(
+                status_code=403,
+                content={"error": True, "message": "未登入系統，拒絕存取"},
+            )
+
+        # 取得user_id
+        secret = os.environ.get("TOKEN_SECRET")
+        token = auth_header.split(" ")[1]
+        payload = jwt.decode(token, secret, algorithms="HS256")
+        user_id = payload["id"]
+        if not user_id:
+            return JSONResponse(
+                status_code=403,
+                content={"error": True, "message": "未登入系統，拒絕存取"},
+            )
+
+        #  從資料庫取得旅程
+        trip = db.get(Trip, trip_id)
+
+        if not trip:
+            return JSONResponse(
+                status_code=404,
+                content={"error": True, "message": "旅程不存在，無法修改"},
+            )
+
+        # 檢查權限
+        stmt = (
+            select(TripMember)
+            .where(TripMember.trip_id == trip_id)
+            .where(TripMember.user_id == user_id)
+        )
+        is_member = db.execute(stmt).scalar_one_or_none()
+
+        if not is_member:
+            return JSONResponse(
+                status_code=403,
+                content={"error": True, "message": "非旅程成員，拒絕存取"},
+            )
+
+        # 更新欄位
+
+        if data.name:
+            trip.name = data.name
+
+        if data.base_currency_id:
+            trip.base_currency_id = data.base_currency_id
+
+        if data.budget:
+            trip.budget = data.budget
+
+        if data.start_date:
+            trip.start_date = data.start_date
+
+        if data.end_date:
+            trip.end_date = data.end_date
+
+        db.commit()
+
+        return JSONResponse(
+            status_code=200,
+            content={"ok": True, "message": "更新成功！"},
+        )
+
+    except Exception as e:
+        db.rollback()
+        print(e)
+        raise
 
 
 # @app.delete("/api/trips/{trip_id}")
@@ -557,7 +669,7 @@ def delete_trip_image(trip_id: int, db: Session = Depends(get_db)):
 @app.get("/api/categories/", response_model=List[dict])
 async def get_categories(db: Session = Depends(get_db)):
     try:
-        categories = db.query(Category).all()
+        categories = db.execute(select(Category)).scalars().all()
         categories_result = [
             {
                 "category_id": c.id,
@@ -582,13 +694,12 @@ async def get_categories(db: Session = Depends(get_db)):
 @app.get("/api/currencies/", response_model=List[dict])
 async def get_currencies(db: Session = Depends(get_db)):
     try:
-        currencies = db.query(Currency).all()
+        currencies = db.execute(select(Currency)).scalars().all()
         currencies_result = [
             {
                 "currency_id": c.id,
                 "currency_name": c.name,
                 "currency_code": c.code,
-                "currency_symbol": c.symbol,
             }
             for c in currencies
         ]
@@ -831,9 +942,11 @@ def get_notifications(
                 content={"error": True, "message": "未登入系統，拒絕存取"},
             )
 
-        notifications = db.execute(
-            select(Notification).where(Notification.user_id == user_id)
-        ).scalars()
+        notifications = (
+            db.execute(select(Notification).where(Notification.user_id == user_id))
+            .scalars()
+            .all()
+        )
         if notifications:
             notification = []
             for msg in notifications:

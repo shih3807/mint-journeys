@@ -29,7 +29,7 @@ class Trip(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    base_currency: Mapped[Optional[str]] = mapped_column(ForeignKey("currencies.code"))
+    base_currency_id: Mapped[int] = mapped_column(ForeignKey("currencies.id"))
     image_filename: Mapped[Optional[str]] = mapped_column(String(225))
     budget: Mapped[Optional[float]] = mapped_column(Float)
     start_date: Mapped[Optional[date]] = mapped_column(Date)
@@ -41,6 +41,7 @@ class Trip(Base):
     members: Mapped[List["TripMember"]] = relationship(
         "TripMember", back_populates="trip"
     )
+    currency: Mapped["Currency"] = relationship("Currency")
     transactions: Mapped[Optional[List["Transaction"]]] = relationship(
         "Transaction", back_populates="trip"
     )
