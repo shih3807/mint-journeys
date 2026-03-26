@@ -99,11 +99,20 @@ class ExchangeRate(Base):
     __tablename__ = "exchange_rates"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    base_currency: Mapped[Optional[str]] = mapped_column(
+    base_currency: Mapped[str] = mapped_column(
         String(3), ForeignKey("currencies.code")
     )
-    target_currency: Mapped[Optional[str]] = mapped_column(
+    target_currency: Mapped[str] = mapped_column(
         String(3), ForeignKey("currencies.code")
     )
     rate: Mapped[float] = mapped_column(Float, nullable=False)
     date: Mapped[date] = mapped_column(Date, nullable=False)
+
+class Notification(Base):
+
+    __tablename__ = "notifications"
+
+    id:Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    message: Mapped[int] = mapped_column(String(225))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
