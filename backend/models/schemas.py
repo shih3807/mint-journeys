@@ -28,3 +28,5 @@ class TransactionCreate(BaseModel):
     currency_id: int
     description: Optional[str]
     transaction_date: Optional[date] = None
+
+

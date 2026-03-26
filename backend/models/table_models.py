@@ -2,7 +2,7 @@ from database import Base
 
 from datetime import date, datetime
 from typing import List, Optional
-from sqlalchemy import String, ForeignKey, Float, DateTime, Date, Boolean, func
+from sqlalchemy import String, ForeignKey, Float, DateTime, Date, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
@@ -13,10 +13,12 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(50), nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     hash_password: Mapped[str] = mapped_column(String(255), nullable=False)
-    headshot_filename: Mapped[Optional[str]] = mapped_column(String(225))
+    avatar_filename: Mapped[Optional[str]] = mapped_column(String(225))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
-    trips_created: Mapped[Optional[List["Trip"]]] = relationship("Trip", back_populates="creator")
+    trips_created: Mapped[Optional[List["Trip"]]] = relationship(
+        "Trip", back_populates="creator"
+    )
     transactions: Mapped[Optional[List["Transaction"]]] = relationship(
         "Transaction", back_populates="user"
     )
@@ -28,7 +30,7 @@ class Trip(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     base_currency: Mapped[Optional[str]] = mapped_column(ForeignKey("currencies.code"))
-    background_filename: Mapped[Optional[str]] = mapped_column(String(225))
+    image_filename: Mapped[Optional[str]] = mapped_column(String(225))
     budget: Mapped[Optional[float]] = mapped_column(Float)
     start_date: Mapped[Optional[date]] = mapped_column(Date)
     end_date: Mapped[Optional[date]] = mapped_column(Date)
@@ -59,7 +61,6 @@ class Category(Base):
     __tablename__ = "categories"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    is_default: Mapped[Optional[bool]] = mapped_column(Boolean, default=False)
     user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
@@ -69,9 +70,8 @@ class Currency(Base):
     __tablename__ = "currencies"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    code: Mapped[str] = mapped_column(String(3), unique=True)
+    code: Mapped[str] = mapped_column(String(3), unique=True, nullable=False)
     name: Mapped[Optional[str]] = mapped_column(String(50))
-    symbol: Mapped[Optional[str]] = mapped_column(String(10))
 
 
 class Transaction(Base):
@@ -82,13 +82,15 @@ class Transaction(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     category_id: Mapped[Optional[int]] = mapped_column(ForeignKey("categories.id"))
     amount: Mapped[float] = mapped_column(Float, nullable=False)
-    currency: Mapped[str] = mapped_column(
-        String(3),ForeignKey("currencies.code")
-    )
+    currency_id: Mapped[int] = mapped_column(ForeignKey("currencies.id"))
+    base_currency_amount: Mapped[float] = mapped_column(Float, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String(255))
     transaction_date: Mapped[Optional[date]] = mapped_column(Date)
+    image_filename: Mapped[Optional[str]] = mapped_column(String(225))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
+    currency: Mapped["Currency"] = relationship("Currency")
+    category: Mapped["Category"] = relationship("Category")
     trip: Mapped["Trip"] = relationship("Trip", back_populates="transactions")
     user: Mapped["User"] = relationship("User", back_populates="transactions")
 
