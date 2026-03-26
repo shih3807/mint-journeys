@@ -1,11 +1,13 @@
-from fastapi import FastAPI, Depends, Request, UploadFile, Form
+from fastapi import FastAPI, Depends, Request, UploadFile, Form, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from database import Base, engine, get_db
 from sqlalchemy.orm import Session
+from sqlalchemy import select, delete
 from typing import List, Any
 from pydantic import EmailStr
-from backend.models.image_service import ImageService
+from models.image_service import ImageService
+from models.connection_manager import ConnectionManager
 from models.table_models import (
     User,
     Trip,
@@ -14,6 +16,7 @@ from models.table_models import (
     Currency,
     Transaction,
     ExchangeRate,
+    Notification
 )
 from seed import insert_test_data
 from models.schemas import (
@@ -51,6 +54,16 @@ TEMPLATE_DIR = BASE_DIR.parent / "frontend" / "templates"
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
+# websocket連線
+@app.websocket("/ws/{trip_id}")
+async def websocket_endpoint(websocket: WebSocket, trip_id: str):
+    connection_manager = ConnectionManager()
+    await connection_manager.connect(websocket, trip_id)
+    try:
+        while True:
+            await websocket.receive_text() 
+    except WebSocketDisconnect:
+        connection_manager.disconnect(websocket, trip_id)
 
 # 回覆檔案
 @app.get("/", include_in_schema=False)
@@ -102,7 +115,10 @@ def register_user(request: Request, data: SingupRequest, db: Session = Depends(g
         password = data.password
 
         # 確認信箱是否重複
-        email_exists = db.query(User.email).filter(User.email == email).first()
+        email_exists = db.execute(
+            select(User).where(User.email == email)
+        ).scalar_one_or_none()
+
         if email_exists:
             return JSONResponse(
                 status_code=400,
@@ -125,13 +141,8 @@ def register_user(request: Request, data: SingupRequest, db: Session = Depends(g
             image_name = ImageService.avatar_image_name(user.id)
             saved = ImageService.save_image(image_name, avator)
 
-            if not saved:
-                return JSONResponse(
-                    status_code=500,
-                    content={"error": True, "message": "伺服器發生錯誤，存取失敗"},
-                )
-
-            user.avatar_filename = saved
+            if saved:
+                user.avatar_filename = saved
 
         db.commit()
         db.refresh(user)
@@ -148,13 +159,13 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
         email = data.email.lower()
         password = data.password
 
-        user = db.query(User).filter(User.email == email).first()
+        user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
 
         # 以電子信箱檢查使用者是否存在
         if not user:
             return JSONResponse(
                 status_code=400,
-                content={"error": True, "message": "登入失敗，錯誤的電子信箱"},
+                content={"error": True, "message": "登入失敗，錯誤或未註冊的電子信箱"},
             )
 
         # 驗證密碼
@@ -423,7 +434,7 @@ def get_trip(trip_id: int, db: Session = Depends(get_db)):
 
 
 # 旅程圖片
-@app.post("/trips/{trip_id}/image")
+@app.post("/api/trips/{trip_id}/image")
 def upload_trip_image(
     request: Request,
     trip_id: int,
@@ -476,7 +487,7 @@ def upload_trip_image(
     return {"ok": True}
 
 
-@app.delete("/trips/{trip_id}/image")
+@app.delete("/api/trips/{trip_id}/image")
 def delete_trip_image(trip_id: int, db: Session = Depends(get_db)):
 
     trip = db.get(Trip, trip_id)
@@ -499,7 +510,7 @@ def delete_trip_image(trip_id: int, db: Session = Depends(get_db)):
 
 
 # 預設分類
-@app.get("/categories/", response_model=List[dict])
+@app.get("/api/categories/", response_model=List[dict])
 async def get_categories(db: Session = Depends(get_db)):
     try:
         categories = db.query(Category).all()
@@ -524,7 +535,7 @@ async def get_categories(db: Session = Depends(get_db)):
 
 
 # 取得貨幣
-@app.get("/currencies/", response_model=List[dict])
+@app.get("/api/currencies/", response_model=List[dict])
 async def get_currencies(db: Session = Depends(get_db)):
     try:
         currencies = db.query(Currency).all()
@@ -638,7 +649,7 @@ def create_transaction(
 
 
 # 消費紀錄圖片
-@app.post("/transactions/{transaction_id}/image")
+@app.post("/api/transactions/{transaction_id}/image")
 def upload_transaction_image(
     request: Request,
     transaction_id: int,
@@ -698,7 +709,8 @@ def upload_transaction_image(
         print(e)
         raise
 
-@app.delete("/transactions/{transaction_id}/image")
+
+@app.delete("/api/transactions/{transaction_id}/image")
 def delete_transaction_image(
     request: Request,
     transaction_id: int,
@@ -726,7 +738,7 @@ def delete_transaction_image(
                 content={"error": True, "message": "未登入系統，拒絕存取"},
             )
 
-        transaction = db.get(Transaction, id)
+        transaction = db.get(Transaction, transaction_id)
 
         if transaction is None:
             return JSONResponse(
@@ -736,9 +748,7 @@ def delete_transaction_image(
         if not transaction.image_filename:
             return {"ok": True}
 
-        ImageService.delete_image(
-            transaction.image_filename
-        )
+        ImageService.delete_image(transaction.image_filename)
 
         transaction.image_filename = None
 
@@ -748,3 +758,51 @@ def delete_transaction_image(
     except Exception as e:
         print(e)
         raise
+
+
+# 通知
+@app.get("/api/notifications")
+def get_notifications(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    try:
+        # 驗證是否登入
+        auth_header = request.headers.get("Authorization")
+
+        if not auth_header:
+            return JSONResponse(
+                status_code=403,
+                content={"error": True, "message": "未登入系統，拒絕存取"},
+            )
+
+        # 取得user_id
+        secret = os.environ.get("TOKEN_SECRET")
+        token = auth_header.split(" ")[1]
+        payload = jwt.decode(token, secret, algorithms="HS256")
+        user_id = payload["id"]
+        if not user_id:
+            return JSONResponse(
+                status_code=403,
+                content={"error": True, "message": "未登入系統，拒絕存取"},
+            )
+
+        notifications = db.execute(select(Notification).where(Notification.user_id == user_id)).scalars()
+        if notifications:
+            notification = []
+            for msg in notifications:
+                notification.append(msg.message)
+
+            db.execute(delete(Notification).where(Notification.user_id == user_id))
+
+            return JSONResponse(
+                status_code=200,
+                content={"ok": True, "notification": notification},
+            )
+        
+        return None
+
+    except Exception as e:
+        print(e)
+        raise
+
