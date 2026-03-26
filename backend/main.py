@@ -1,10 +1,11 @@
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, Request, UploadFile, Form
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from database import Base, engine, get_db
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Any
 from pydantic import EmailStr
+from backend.models.image_service import ImageService
 from models.table_models import (
     User,
     Trip,
@@ -403,6 +404,81 @@ def get_trip(trip_id: int, db: Session = Depends(get_db)):
 #     db.commit()
 
 #     return {"message": "trip deleted"}
+
+
+# 旅程圖片
+@app.post("/trips/{trip_id}/image")
+def upload_trip_image(
+    request: Request,
+    trip_id: int,
+    file: UploadFile = Form(...),
+    db: Session = Depends(get_db),
+):
+    # 驗證是否登入
+    auth_header = request.headers.get("Authorization")
+
+    if not auth_header:
+        return JSONResponse(
+            status_code=403,
+            content={"error": True, "message": "未登入系統，拒絕存取"},
+        )
+
+    # 取得user_id
+    secret = os.environ.get("TOKEN_SECRET")
+    token = auth_header.split(" ")[1]
+    payload = jwt.decode(token, secret, algorithms="HS256")
+    user_id = int(payload["id"])
+    if not user_id:
+        return JSONResponse(
+            status_code=403,
+            content={"error": True, "message": "未登入系統，拒絕存取"},
+        )
+
+    filename = ImageService.trip_image_name(trip_id, user_id)
+
+    webp = ImageService.convert_to_webp(file.file)
+
+    saved = ImageService.save_image(filename, webp)
+
+    if not saved:
+        return JSONResponse(
+            status_code=500,
+            content={"error": True, "message": "伺服器發生錯誤，存取失敗"},
+        )
+
+    trip = db.get(Trip, trip_id)
+    if not trip:
+        return JSONResponse(
+            status_code=404,
+            content={"error": True, "message": "旅程不存在，存取失敗"},
+        )
+
+    trip.image_filename = filename
+
+    db.commit()
+
+    return {"ok":True}
+
+@app.delete("/trips/{trip_id}/image")
+def delete_trip_image(trip_id: int, db: Session = Depends(get_db)):
+
+    trip = db.get(Trip, trip_id)
+    if not trip:
+        return JSONResponse(
+            status_code=404,
+            content={"error": True, "message": "旅程不存在，無法刪除"},
+        )
+
+    if not trip.image_filename:
+        return  {"ok": True}
+
+    ImageService.delete_image(trip.image_filename)
+
+    trip.image_filename = None
+
+    db.commit()
+
+    return {"ok": True}
 
 
 # 預設分類
