@@ -13,6 +13,9 @@ class LoginRequest(BaseModel):
     email: str
     password: str
 
+class UserExists(BaseModel):
+    email: str
+
 class CreateTripRequest(BaseModel):
     name: str
     member_email: Optional[str] = None

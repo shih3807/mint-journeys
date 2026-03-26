@@ -1,4 +1,12 @@
-from fastapi import FastAPI, Depends, Request, UploadFile, Form, WebSocket, WebSocketDisconnect
+from fastapi import (
+    FastAPI,
+    Depends,
+    Request,
+    UploadFile,
+    Form,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from database import Base, engine, get_db
@@ -16,7 +24,7 @@ from models.table_models import (
     Currency,
     Transaction,
     ExchangeRate,
-    Notification
+    Notification,
 )
 from seed import insert_test_data
 from models.schemas import (
@@ -24,6 +32,7 @@ from models.schemas import (
     LoginRequest,
     CreateTripRequest,
     TransactionCreate,
+    UserExists,
 )
 import bcrypt
 import jwt
@@ -54,6 +63,7 @@ TEMPLATE_DIR = BASE_DIR.parent / "frontend" / "templates"
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
+
 # websocket連線
 @app.websocket("/ws/{trip_id}")
 async def websocket_endpoint(websocket: WebSocket, trip_id: str):
@@ -61,9 +71,10 @@ async def websocket_endpoint(websocket: WebSocket, trip_id: str):
     await connection_manager.connect(websocket, trip_id)
     try:
         while True:
-            await websocket.receive_text() 
+            await websocket.receive_text()
     except WebSocketDisconnect:
         connection_manager.disconnect(websocket, trip_id)
+
 
 # 回覆檔案
 @app.get("/", include_in_schema=False)
@@ -108,7 +119,7 @@ async def trip_page(
 
 
 @app.post("/api/auth/register")
-def register_user(request: Request, data: SingupRequest, db: Session = Depends(get_db)):
+def register_user(data: SingupRequest, db: Session = Depends(get_db)):
     try:
         name = data.name
         email = data.email.lower()
@@ -154,7 +165,7 @@ def register_user(request: Request, data: SingupRequest, db: Session = Depends(g
 
 
 @app.post("/api/auth/login")
-def login(data: LoginRequest, db: Session = Depends(get_db)):
+def login_user(data: LoginRequest, db: Session = Depends(get_db)):
     try:
         email = data.email.lower()
         password = data.password
@@ -191,6 +202,39 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
         token = jwt.encode(payload, secret, algorithm="HS256")
 
         return JSONResponse(status_code=200, content={"ok": True, "token": token})
+    except Exception as e:
+        print(e)
+        raise
+
+
+@app.post("/api/user/exists")
+def email_exists(request: Request, data: UserExists, db: Session = Depends(get_db)):
+    try:
+        # 驗證是否登入
+        auth_header = request.headers.get("Authorization")
+
+        if not auth_header:
+            return JSONResponse(
+                status_code=403,
+                content={"error": True, "message": "未登入系統，拒絕存取"},
+            )
+
+        # 查詢Email是否存在
+        email_exists = db.execute(
+            select(User).where(User.email == data.email)
+        ).scalar_one_or_none()
+
+        if email_exists:
+            return JSONResponse(
+                status_code=200,
+                content={"ok": True, "message": "該用戶存在"},
+            )
+        
+        return JSONResponse(
+                status_code=404,
+                content={"error": True, "message": "該用戶不存在"},
+            )
+
     except Exception as e:
         print(e)
         raise
@@ -787,7 +831,9 @@ def get_notifications(
                 content={"error": True, "message": "未登入系統，拒絕存取"},
             )
 
-        notifications = db.execute(select(Notification).where(Notification.user_id == user_id)).scalars()
+        notifications = db.execute(
+            select(Notification).where(Notification.user_id == user_id)
+        ).scalars()
         if notifications:
             notification = []
             for msg in notifications:
@@ -799,10 +845,9 @@ def get_notifications(
                 status_code=200,
                 content={"ok": True, "notification": notification},
             )
-        
+
         return None
 
     except Exception as e:
         print(e)
         raise
-
