@@ -26,6 +26,8 @@ class CreateTripRequest(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
 
+class AddMemberRequest(BaseModel):
+    member_emails: Optional[list[str]] = None
 
 class UpdateTripRequest(BaseModel):
     name: Optional[str] = None

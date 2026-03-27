@@ -285,7 +285,7 @@ def create_trip(
         db.add(creator_member)
 
         # 檢查 member email
-        def ckeck_member_exists(member_email):
+        def check_member_exists(member_email):
             if member_email:
                 member_exists = db.execute(
                     select(User).where(User.email == member_email)
@@ -299,7 +299,7 @@ def create_trip(
         if data.member_emails:
             # 針對每一個共同編輯者做處理
             for email in data.member_emails:
-                member_id = ckeck_member_exists(email)
+                member_id = check_member_exists(email)
 
                 if not member_id:
                     return JSONResponse(
@@ -595,62 +595,210 @@ def update_trip(
         raise
 
 
-# @app.post("/api/trips/{trip_id}/members")
-# def add_member(
-#     trip_id: int,
-#     data: AddMemberRequest,
-#     db: Session = Depends(get_db),
-# ):
+@app.post("/api/trips/{trip_id}/members")
+def add_member(
+    request: Request,
+    trip_id: int,
+    data: AddMemberRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        # 驗證是否登入
+        auth_header = request.headers.get("Authorization")
 
-#     # 檢查 trip 是否存在
-#     trip = db.get(Trip, trip_id)
-#     if not trip:
-#         raise HTTPException(404, "Trip not found")
+        if not auth_header:
+            return JSONResponse(
+                status_code=403,
+                content={"error": True, "message": "未登入系統，拒絕存取"},
+            )
 
-#     # 檢查 user 是否存在
-#     user = db.get(User, data.user_id)
-#     if not user:
-#         raise HTTPException(404, "User not found")
+        # 取得user_name
+        secret = os.environ.get("TOKEN_SECRET")
+        token = auth_header.split(" ")[1]
+        payload = jwt.decode(token, secret, algorithms="HS256")
+        user_name = payload["id"]
+        if not user_name:
+            return JSONResponse(
+                status_code=403,
+                content={"error": True, "message": "未登入系統，拒絕存取"},
+            )
 
-#     # 檢查是否已加入
-#     stmt = select(TripMember).where(
-#         TripMember.trip_id == trip_id,
-#         TripMember.user_id == data.user_id,
-#     )
+        # 檢查 trip 是否存在
+        trip = db.get(Trip, trip_id)
+        if not trip:
+            return JSONResponse(
+                status_code=404,
+                content={"error": True, "message": "不存在的旅程，存取失敗"},
+            )
 
-#     exist = db.execute(stmt).scalar_one_or_none()
+        # 檢查 member email
+        def check_member_exists(member_email):
+            if member_email:
+                member_exists = db.execute(
+                    select(User).where(User.email == member_email)
+                ).scalar_one_or_none()
 
-#     if exist:
-#         raise HTTPException(400, "User already in trip")
+                if member_exists:
+                    return member_exists.id
+                return False
 
-#     # 新增 member
-#     member = TripMember(
-#         trip_id=trip_id,
-#         user_id=data.user_id,
-#     )
+        # 如果有共同編輯者
+        if data.member_emails:
+            # 針對每一個共同編輯者做處理
+            for email in data.member_emails:
+                member_id = check_member_exists(email)
 
-#     db.add(member)
-#     db.commit()
+                if not member_id:
+                    return JSONResponse(
+                        status_code=401,
+                        content={
+                            "error": True,
+                            "message": f"新增行程失敗，{email} 不存在",
+                        },
+                    )
 
-#     return {"ok": True}
+                # 檢查是否已加入
+                stmt = select(TripMember).where(
+                    TripMember.trip_id == trip_id,
+                    TripMember.user_id == member_id,
+                )
+
+                already_exist = db.execute(stmt).scalar_one_or_none()
+
+                if already_exist:
+                    continue
+
+                member = TripMember(trip_id=trip.id, user_id=member_id)
+                db.add(member)
+
+                # 新增通知
+                db.add(
+                    Notification(
+                        user_id=member_id,
+                        message=f"{user_name} 將你加入行程：{trip.name}",
+                    )
+                )
+
+        # 一起 commit
+        db.commit()
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "ok": True,
+                "message": "成功新增成員！",
+            },
+        )
+
+    except Exception as e:
+        db.rollback()
+        print(e)
+        raise
 
 
-# @app.delete("/api/trips/{trip_id}")
-# def delete_trip(trip_id: UUID, db: Session = Depends(get_db)):
+@app.delete("/api/trips/{trip_id}")
+def remove_member(
+    request: Request,
+    trip_id: int,
+    db: Session = Depends(get_db),
+):
 
-#     trip = (
-#         db.query(models.table_models.Trip)
-#         .filter(models.table_models.Trip.trip_id == trip_id)
-#         .first()
-#     )
+    try:
+        # 驗證是否登入
+        auth_header = request.headers.get("Authorization")
 
-#     if not trip:
-#         raise HTTPException(status_code=404, detail="Trip not found")
+        if not auth_header:
+            return JSONResponse(
+                status_code=403,
+                content={"error": True, "message": "未登入系統，拒絕存取"},
+            )
 
-#     db.delete(trip)
-#     db.commit()
+        # 取得user_id
+        secret = os.environ.get("TOKEN_SECRET")
+        token = auth_header.split(" ")[1]
+        payload = jwt.decode(token, secret, algorithms="HS256")
+        user_id = payload["id"]
+        if not user_id:
+            return JSONResponse(
+                status_code=403,
+                content={"error": True, "message": "未登入系統，拒絕存取"},
+            )
 
-#     return {"message": "trip deleted"}
+        # 確定旅程是否存在
+        trip = db.get(Trip, trip_id)
+        if not trip:
+            return JSONResponse(
+                status_code=404,
+                content={"error": True, "message": "不存在的旅程，存取失敗"},
+            )
+
+        # 確定成員是否在行程中
+        stmt = select(TripMember).where(
+            TripMember.trip_id == trip_id,
+            TripMember.user_id == user_id,
+        )
+
+        member = db.execute(stmt).scalar_one_or_none()
+
+        if not member:
+            return JSONResponse(
+                status_code=200,
+                content={"ok": True, "message": "成功退出行程！"},
+            )
+
+        # 刪除 member
+        db.delete(member)
+        db.flush()
+
+        # 檢查還剩幾個人，刪除沒有成員的行程
+        stmt = select(TripMember).where(TripMember.trip_id == trip_id)
+
+        members = db.execute(stmt).scalars().all()
+
+        if len(members) == 0:
+            # 刪旅程圖片
+            if trip.image_filename:
+                delete_trip_image = ImageService.delete_image(trip.image_filename)
+
+                if not delete_trip_image:
+                    return JSONResponse(
+                        status_code=500,
+                        content={"error": True, "message": "退出行程失敗，請稍後再試"},
+                    )
+
+            # 刪交易圖片
+            stmt = select(Transaction).where(Transaction.trip_id == trip_id)
+
+            transactions = db.execute(stmt).scalars().all()
+
+            for t in transactions:
+                if t.image_filename:
+                    delete_transactions_image = ImageService.delete_image(
+                        t.image_filename
+                    )
+                    if not delete_transactions_image:
+                        return JSONResponse(
+                            status_code=500,
+                            content={
+                                "error": True,
+                                "message": "退出行程失敗，請稍後再試",
+                            },
+                        )
+
+            # 刪 trip
+            db.delete(trip)
+
+        db.commit()
+
+        return JSONResponse(
+            status_code=200,
+            content={"ok": True, "message": "成功退出行程！"},
+        )
+
+    except Exception as e:
+        db.rollback()
+        print(e)
+        raise
 
 
 # 旅程圖片
@@ -704,11 +852,23 @@ def upload_trip_image(
 
     db.commit()
 
-    return {"ok": True}
+    return JSONResponse(
+        status_code=200,
+        content={"ok": True, "message": "成功新增圖片！"},
+    )
 
 
 @app.delete("/api/trips/{trip_id}/image")
-def delete_trip_image(trip_id: int, db: Session = Depends(get_db)):
+def delete_trip_image(request: Request, trip_id: int, db: Session = Depends(get_db)):
+
+    # 驗證是否登入
+    auth_header = request.headers.get("Authorization")
+
+    if not auth_header:
+        return JSONResponse(
+            status_code=403,
+            content={"error": True, "message": "未登入系統，拒絕存取"},
+        )
 
     trip = db.get(Trip, trip_id)
     if not trip:
@@ -718,7 +878,10 @@ def delete_trip_image(trip_id: int, db: Session = Depends(get_db)):
         )
 
     if not trip.image_filename:
-        return {"ok": True}
+        return JSONResponse(
+            status_code=200,
+            content={"ok": True, "message": "成功刪除圖片！"},
+        )
 
     ImageService.delete_image(trip.image_filename)
 
@@ -726,7 +889,10 @@ def delete_trip_image(trip_id: int, db: Session = Depends(get_db)):
 
     db.commit()
 
-    return {"ok": True}
+    return JSONResponse(
+        status_code=200,
+        content={"ok": True, "message": "成功刪除圖片！"},
+    )
 
 
 # 預設分類
@@ -808,10 +974,22 @@ def create_transaction(
                 content={"error": True, "message": "未登入系統，拒絕存取"},
             )
 
-        currency = db.query(Currency).filter(Currency.id == data.currency_id).first()
+        # 確認貨幣存在
+        stmt = select(Currency).where(Currency.id == data.currency_id)
+        currency = db.execute(stmt).scalar_one_or_none()
+
         if not currency:
             return JSONResponse(
-                status_code=400, content={"error": True, "message": "貨幣不存在"}
+                status_code=404, content={"error": True, "message": "貨幣不存在"}
+            )
+        
+        # 確認類別存在
+        stmt = select(Category).where(Category.id == data.category_id)
+        currency = db.execute(stmt).scalar_one_or_none()
+
+        if not currency:
+            return JSONResponse(
+                status_code=404, content={"error": True, "message": "類別不存在"}
             )
 
         transaction = Transaction(
@@ -819,7 +997,7 @@ def create_transaction(
             user_id=user_id,
             category_id=data.category_id,
             amount=data.amount,
-            currency=currency.code,
+            currency_id=data.currency_id,
             description=data.description,
             transaction_date=data.transaction_date,
         )
@@ -834,6 +1012,7 @@ def create_transaction(
         )
     except Exception as e:
         print(e)
+        db.rollback()
         raise
 
 
