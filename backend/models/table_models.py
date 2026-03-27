@@ -19,6 +19,9 @@ class User(Base):
     trips_created: Mapped[Optional[List["Trip"]]] = relationship(
         "Trip", back_populates="creator"
     )
+    trips: Mapped[Optional[List["TripMember"]]] = relationship(
+        "Transaction", back_populates="user", cascade="all, delete-orphan"
+    )
     transactions: Mapped[Optional[List["Transaction"]]] = relationship(
         "Transaction", back_populates="user"
     )
@@ -60,6 +63,7 @@ class TripMember(Base):
     joined_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
     trip: Mapped["Trip"] = relationship("Trip", back_populates="members")
+    user: Mapped["User"] = relationship("User", back_populates="trips")
 
 
 class Category(Base):

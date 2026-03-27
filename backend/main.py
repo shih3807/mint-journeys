@@ -23,7 +23,6 @@ from models.table_models import (
     Category,
     Currency,
     Transaction,
-    ExchangeRate,
     Notification,
 )
 from seed import insert_test_data
@@ -31,6 +30,7 @@ from models.schemas import (
     SingupRequest,
     LoginRequest,
     CreateTripRequest,
+    AddMemberRequest,
     UpdateTripRequest,
     TransactionCreate,
     UserExists,
@@ -363,7 +363,7 @@ def get_trips(request: Request, db: Session = Depends(get_db)):
         stmt = (
             select(Trip)
             .options(selectinload(Trip.currency))
-            .options(selectinload(Trip.members))
+            .options(selectinload(Trip.members).selectinload(TripMember.user))
             .join(Trip.members)
             .where(TripMember.user_id == user_id)
         )
@@ -379,7 +379,7 @@ def get_trips(request: Request, db: Session = Depends(get_db)):
             else:
                 shared_trips.append(trip)
 
-        def trip_to_dict(trip: Trip):
+        def my_trip(trip: Trip):
             return {
                 "id": trip.id,
                 "name": trip.name,
@@ -393,13 +393,37 @@ def get_trips(request: Request, db: Session = Depends(get_db)):
                 else None,
             }
 
+        def shared_trip(trip: Trip):
+            return {
+                "id": trip.id,
+                "name": trip.name,
+                "start_date": trip.start_date.isoformat() if trip.start_date else None,
+                "end_date": trip.end_date.isoformat() if trip.end_date else None,
+                "currency": trip.currency.code if trip.currency else None,
+                "currency_id": trip.currency.id if trip.currency else None,
+                "budget": trip.budget,
+                "image_filename": ImageService.file_url(trip.image_filename)
+                if (trip.image_filename)
+                else None,
+                "members": [
+                    {
+                        "user_id": m.user.id,
+                        "name": m.user.name,
+                        "avatar": ImageService.file_url(m.user.avatar)
+                        if m.user.avatar
+                        else None,
+                    }
+                    for m in trip.members
+                ],
+            }
+
         return JSONResponse(
             status_code=200,
             content={
                 "ok": True,
                 "data": {
-                    "trips": [trip_to_dict(trip) for trip in my_trips],
-                    "shareTrips": [trip_to_dict(trip) for trip in shared_trips],
+                    "trips": [my_trip(trip) for trip in my_trips],
+                    "shareTrips": [shared_trip(trip) for trip in shared_trips],
                 },
             },
         )
@@ -569,6 +593,46 @@ def update_trip(
         db.rollback()
         print(e)
         raise
+
+
+# @app.post("/api/trips/{trip_id}/members")
+# def add_member(
+#     trip_id: int,
+#     data: AddMemberRequest,
+#     db: Session = Depends(get_db),
+# ):
+
+#     # 檢查 trip 是否存在
+#     trip = db.get(Trip, trip_id)
+#     if not trip:
+#         raise HTTPException(404, "Trip not found")
+
+#     # 檢查 user 是否存在
+#     user = db.get(User, data.user_id)
+#     if not user:
+#         raise HTTPException(404, "User not found")
+
+#     # 檢查是否已加入
+#     stmt = select(TripMember).where(
+#         TripMember.trip_id == trip_id,
+#         TripMember.user_id == data.user_id,
+#     )
+
+#     exist = db.execute(stmt).scalar_one_or_none()
+
+#     if exist:
+#         raise HTTPException(400, "User already in trip")
+
+#     # 新增 member
+#     member = TripMember(
+#         trip_id=trip_id,
+#         user_id=data.user_id,
+#     )
+
+#     db.add(member)
+#     db.commit()
+
+#     return {"ok": True}
 
 
 # @app.delete("/api/trips/{trip_id}")
