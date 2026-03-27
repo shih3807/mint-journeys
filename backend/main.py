@@ -476,8 +476,8 @@ def get_trip(request: Request, trip_id: int, db: Session = Depends(get_db)):
                 if (trip.image_filename)
                 else None,
                 "budget": trip.budget,
-                "start_date": trip.start_date,
-                "end_date": trip.end_date,
+                "start_date": trip.start_date.isoformat() if trip.start_date else None,
+                "end_date": trip.end_date.isoformat() if trip.end_date else None,
                 "created_by": trip.created_by,
             },
         )
@@ -982,7 +982,7 @@ def create_transaction(
             return JSONResponse(
                 status_code=404, content={"error": True, "message": "貨幣不存在"}
             )
-        
+
         # 確認類別存在
         stmt = select(Category).where(Category.id == data.category_id)
         currency = db.execute(stmt).scalar_one_or_none()
@@ -1016,34 +1016,93 @@ def create_transaction(
         raise
 
 
-# @app.get("/api/transaction")
-# def get_expenses(trip_id: UUID, db: Session = Depends(get_db)):
+@app.get("/api/transaction/{transaction_id}")
+def get_expenses(request: Request, transaction_id: int, db: Session = Depends(get_db)):
+    try:
+        # 驗證是否登入
+        auth_header = request.headers.get("Authorization")
 
-#     expenses = (
-#         db.query(models.table_models.Expense)
-#         .filter(models.table_models.Expense.trip_id == trip_id)
-#         .all()
-#     )
+        if not auth_header:
+            return JSONResponse(
+                status_code=403,
+                content={"error": True, "message": "未登入系統，拒絕存取"},
+            )
 
-#     return expenses
+        # 查詢記帳紀錄
+        transaction = db.get(Transaction, transaction_id)
+
+        if not transaction:
+            return JSONResponse(
+                status_code=404,
+                content={"error": True, "message": "記帳紀錄不存在"},
+            )
+
+        expenses = {
+            "id": transaction.id,
+            "trip_id": transaction.trip_id,
+            "create_by": transaction.user_id,
+            "category_id": transaction.category_id,
+            "amount": transaction.category_id,
+            "currency_id": transaction.currency_id,
+            "description": transaction.description,
+            "create_at": transaction.transaction_date.isoformat()
+            if transaction.transaction_date
+            else None,
+            "image_filename": ImageService.file_url(transaction.image_filename)
+            if (transaction.image_filename)
+            else None,
+        }
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "ok": True,
+                "data": expenses,
+            },
+        )
+
+    except Exception as e:
+        print(e)
+        raise
 
 
-# @app.delete("/api/transaction/{transaction_id}")
-# def delete_expense(expense_id: UUID, db: Session = Depends(get_db)):
+@app.delete("/api/transaction/{transaction_id}")
+def delete_expense(
+    request: Request, transaction_id: int, db: Session = Depends(get_db)
+):
+    try:
+        # 驗證是否登入
+        auth_header = request.headers.get("Authorization")
 
-#     expense = (
-#         db.query(models.table_models.Expense)
-#         .filter(models.table_models.Expense.expense_id == expense_id)
-#         .first()
-#     )
+        if not auth_header:
+            return JSONResponse(
+                status_code=403,
+                content={"error": True, "message": "未登入系統，拒絕存取"},
+            )
 
-#     if not expense:
-#         raise HTTPException(status_code=404, detail="Expense not found")
+        expense = db.get(Transaction, transaction_id)
 
-#     db.delete(expense)
-#     db.commit()
+        if not expense:
+            return JSONResponse(
+                status_code=404,
+                content={"error": True, "message": "記帳紀錄不存在"},
+            )
 
-#     return {"message": "expense deleted"}
+        db.delete(expense)
+        db.commit()
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "ok": True,
+                "message": "成功刪除交易紀錄！",
+            },
+        )
+
+    except Exception as e:
+        print(e)
+        db.rollback()
+        raise
 
 
 # 消費紀錄圖片
