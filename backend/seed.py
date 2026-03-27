@@ -22,7 +22,7 @@ def insert_test_data():
         ]
 
         for data in default_category_data:
-            exists = db.execute(select(Category).where(Category.name == data["name"]))
+            exists = db.execute(select(Category).where(Category.name == data["name"])).scalar_one_or_none()
             if not exists:
                 db.add(Category(**data))
 
@@ -46,7 +46,7 @@ def insert_test_data():
             {"code": "NZD", "name": "紐西蘭幣"},
         ]
         for data in default_currency_data:
-            exists = db.execute(select(Currency).where(Currency.code == data["code"]))
+            exists = db.execute(select(Currency).where(Currency.code == data["code"])).scalar_one_or_none()
             if not exists:
                 db.add(Currency(**data))
 

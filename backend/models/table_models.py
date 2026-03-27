@@ -20,7 +20,7 @@ class User(Base):
         "Trip", back_populates="creator"
     )
     trips: Mapped[Optional[List["TripMember"]]] = relationship(
-        "Transaction", back_populates="user", cascade="all, delete-orphan"
+        "Trip", back_populates="user", cascade="all, delete-orphan"
     )
     transactions: Mapped[Optional[List["Transaction"]]] = relationship(
         "Transaction", back_populates="user"
