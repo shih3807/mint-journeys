@@ -39,6 +39,7 @@ import bcrypt
 import jwt
 import datetime
 import os
+import asyncio
 
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
@@ -66,9 +67,9 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 # websocket連線
+connection_manager = ConnectionManager()
 @app.websocket("/ws/{trip_id}")
 async def websocket_endpoint(websocket: WebSocket, trip_id: str):
-    connection_manager = ConnectionManager()
     await connection_manager.connect(websocket, trip_id)
     try:
         while True:
@@ -1005,6 +1006,16 @@ def create_transaction(
         db.add(transaction)
         db.commit()
         db.refresh(transaction)
+
+        # 用websocket推播
+        asyncio.create_task(
+            connection_manager.broadcast_to_trip(
+                str(data.trip_id),
+                {
+                    "message": "新增消費紀錄！"
+                },
+            )
+        )
 
         return JSONResponse(
             status_code=200,
