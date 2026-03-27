@@ -33,14 +33,14 @@ class Trip(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     base_currency_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("currencies.id"), ondelete="SET NULL"
+        ForeignKey("currencies.id", ondelete="SET NULL"), nullable=True
     )
     image_filename: Mapped[Optional[str]] = mapped_column(String(225))
     budget: Mapped[Optional[float]] = mapped_column(Float)
     start_date: Mapped[Optional[date]] = mapped_column(Date)
     end_date: Mapped[Optional[date]] = mapped_column(Date)
     created_by: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("users.id"), ondelete="SET NULL"
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
@@ -58,8 +58,8 @@ class TripMember(Base):
     __tablename__ = "trip_members"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    trip_id: Mapped[int] = mapped_column(ForeignKey("trips.id"), ondelete="CASCADE")
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), ondelete="CASCADE")
+    trip_id: Mapped[int] = mapped_column(ForeignKey("trips.id", ondelete="CASCADE"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     joined_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
     trip: Mapped["Trip"] = relationship("Trip", back_populates="members")
@@ -71,7 +71,7 @@ class Category(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     user_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("users.id"), ondelete="CASCADE"
+        ForeignKey("users.id", ondelete="CASCADE")
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
@@ -89,16 +89,16 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    trip_id: Mapped[int] = mapped_column(ForeignKey("trips.id"), ondelete="CASCADE")
+    trip_id: Mapped[int] = mapped_column(ForeignKey("trips.id", ondelete="CASCADE"))
     user_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("users.id"), ondelete="SET NULL"
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     category_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("categories.id"), ondelete="SET NULL"
+        ForeignKey("categories.id", ondelete="SET NULL"), nullable=True
     )
     amount: Mapped[float] = mapped_column(Float, nullable=False)
     currency_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("currencies.id"), ondelete="SET NULL"
+        ForeignKey("currencies.id", ondelete="SET NULL"), nullable=True
     )
     base_currency_amount: Mapped[float] = mapped_column(Float, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String(255))
@@ -117,7 +117,7 @@ class ExchangeRate(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     base_currency: Mapped[str] = mapped_column(
-        String(3), ForeignKey("currencies.code"), ondelete="CASCADE"
+        String(3), ForeignKey("currencies.code", ondelete="CASCADE")
     )
     target_currency: Mapped[str] = mapped_column(
         String(3), ForeignKey("currencies.code", ondelete="CASCADE")
@@ -130,6 +130,6 @@ class Notification(Base):
     __tablename__ = "notifications"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), ondelete="CASCADE")
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     message: Mapped[int] = mapped_column(String(225))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
