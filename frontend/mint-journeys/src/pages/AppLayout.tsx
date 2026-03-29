@@ -1,6 +1,13 @@
-import { AppShell, Group, Container, Image } from '@mantine/core';
+import {
+  AppShell,
+  Group,
+  Container,
+  Image,
+  Button,
+  Title,
+} from '@mantine/core';
 import { useNavigate, Outlet } from 'react-router-dom';
-import title from '../assets/title.webp';
+import icon from '../assets/icon.webp';
 
 export function AppLayout() {
   const navigate = useNavigate();
@@ -10,19 +17,35 @@ export function AppLayout() {
       <AppShell.Header>
         <Group
           h="100%"
-          px="md"
           pl="xl"
+          pr="xl"
           justify="space-between"
           style={{
             backgroundColor: '#9ab66594',
           }}
         >
-          <Image
-            src={title}
-            w={80}
-            style={{ cursor: 'pointer' }}
+          <Group
+            h="100%"
+            pl="xl"
+            pr="xl"
+            gap={16}
+            align="center"
             onClick={() => navigate('/home')}
-          />
+          >
+            <Image src={icon} w={28} style={{ cursor: 'pointer' }} />
+            <Title order={3} c="#0a3323" style={{ fontWeight: 900 }}>
+              Mint Journeys
+            </Title>
+          </Group>
+          <Button
+            color='accent-red'
+            onClick={() => {
+              window.localStorage.removeItem('token');
+              window.location.href = '/';
+            }}
+          >
+            登出
+          </Button>
         </Group>
       </AppShell.Header>
 
