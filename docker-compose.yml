@@ -1,9 +1,20 @@
 services:
-  web:
-    build: .
-    container_name: mint-journeys-web
-    ports:
-      - "8000:8000"
+  backend:
+    build:
+      context: ./backend
+    container_name: mint_journeys_backend
     env_file:
-      - .env
-      
+      - ./backend/.env
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend/mint-journeys
+    container_name: mint_journeys_frontend
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    restart: unless-stopped

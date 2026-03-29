@@ -30,7 +30,7 @@ import {
   IconArrowNarrowLeft,
   IconPlus,
 } from '@tabler/icons-react';
-import background from '../assets/background.png';
+import background from '../assets/background.webp';
 import { BarChart, DonutChart, LineChart } from '@mantine/charts';
 import dayjs from 'dayjs';
 
@@ -147,7 +147,7 @@ export function TripDetailPage() {
     const fetchTripDetail = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`http://localhost:8000/api/trips/${tripId}`, {
+        const res = await fetch(`/api/trips/${tripId}`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -201,7 +201,7 @@ export function TripDetailPage() {
       if (endDate) params.append('end_date', endDate);
 
       const res = await fetch(
-        `http://localhost:8000/api/trips/${tripId}/analytics?${params.toString()}`,
+        `/api/trips/${tripId}/analytics?${params.toString()}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,

@@ -64,7 +64,7 @@ export function TransactionDetailPage() {
 
       try {
         const res = await fetch(
-          `http://localhost:8000/api/transaction/${transactionId}`,
+          `/api/transaction/${transactionId}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -113,7 +113,7 @@ export function TransactionDetailPage() {
 
     try {
       const res = await fetch(
-        `http://localhost:8000/api/transaction/${transactionId}`,
+        `/api/transaction/${transactionId}`,
         {
           method: 'DELETE',
           headers: {

@@ -14,7 +14,8 @@ import { ModalsProvider } from '@mantine/modals';
 
 import theme from './styles/theme.tsx';
 import '@fontsource/merriweather';
-import '@fontsource/noto-serif-tc';
+import '@fontsource/noto-serif-tc/700.css';
+import '@fontsource/noto-serif-tc/900.css';
 
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';

@@ -41,7 +41,6 @@ import datetime
 import os
 import asyncio
 
-from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
 app = FastAPI()
@@ -54,16 +53,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-Base.metadata.drop_all(bind=engine)  # TODO:樣式確定後刪除
+# Base.metadata.drop_all(bind=engine)  
 Base.metadata.create_all(bind=engine)  # 建置資料表
 insert_test_data()  # 預設資料
 
 
-BASE_DIR = Path(__file__).parent
-STATIC_DIR = BASE_DIR.parent / "frontend" / "static"
-TEMPLATE_DIR = BASE_DIR.parent / "frontend" / "templates"
-
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 # websocket連線
@@ -79,44 +73,6 @@ async def websocket_endpoint(websocket: WebSocket, trip_id: str):
     except WebSocketDisconnect:
         connection_manager.disconnect(websocket, trip_id)
 
-
-# 回覆檔案
-@app.get("/", include_in_schema=False)
-async def index(request: Request):
-    return FileResponse(TEMPLATE_DIR / "index.html", media_type="text/html")
-
-
-@app.get("/auth", include_in_schema=False)
-async def auth_page(request: Request):
-    return FileResponse(TEMPLATE_DIR / "auth.html", media_type="text/html")
-
-
-@app.get("/home", include_in_schema=False)
-async def home(request: Request):
-    return FileResponse(TEMPLATE_DIR / "home.html", media_type="text/html")
-
-
-@app.get("/trip/new", include_in_schema=False)
-async def new_trip_page(request: Request):
-    return FileResponse(TEMPLATE_DIR / "new-trip.html", media_type="text/html")
-
-
-@app.get("/trip/{id}/new", include_in_schema=False)
-async def new_transaction_page(
-    request: Request,
-    id: int,
-    currency_id: int | None = None,
-):
-    return FileResponse(TEMPLATE_DIR / "new_transaction.html", media_type="text/html")
-
-
-@app.get("/trip/{id}", include_in_schema=False)
-async def trip_page(
-    request: Request,
-    id: int,
-    currency_id: int | None = None,
-):
-    return FileResponse(TEMPLATE_DIR / "trip.html", media_type="text/html")
 
 
 # 會員系統
