@@ -123,7 +123,7 @@ export function TripFormPage() {
   useEffect(() => {
     const fetchCurrencies = async () => {
       try {
-        const res = await fetch('http://localhost:8000/api/currencies/');
+        const res = await fetch('/api/currencies/');
         const result: CurrencyApiResponse = await res.json();
 
         if (!result.ok || !Array.isArray(result.data)) {
@@ -155,7 +155,7 @@ export function TripFormPage() {
     const fetchTripDetail = async () => {
       setLoadingTrip(true);
       try {
-        const res = await fetch(`http://localhost:8000/api/trips/${tripId}`, {
+        const res = await fetch(`/api/trips/${tripId}`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -230,7 +230,7 @@ export function TripFormPage() {
     if (!token) return null;
 
     try {
-      const res = await fetch('http://localhost:8000/api/user/exists', {
+      const res = await fetch('/api/user/exists', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -318,7 +318,7 @@ export function TripFormPage() {
     formData.append('file', file);
 
     const imgRes = await fetch(
-      `http://localhost:8000/api/trips/${targetTripId}/image`,
+      `/api/trips/${targetTripId}/image`,
       {
         method: 'POST',
         headers: {
@@ -355,7 +355,7 @@ export function TripFormPage() {
 
     try {
       const res = await fetch(
-        `http://localhost:8000/api/trips/${tripId}/image`,
+        `/api/trips/${tripId}/image`,
         {
           method: 'DELETE',
           headers: {
@@ -398,7 +398,7 @@ export function TripFormPage() {
     if (!memberEmails || memberEmails.length === 0 || !token) return true;
 
     const res = await fetch(
-      `http://localhost:8000/api/trips/${targetTripId}/members`,
+      `/api/trips/${targetTripId}/members`,
       {
         method: 'POST',
         headers: {
@@ -427,7 +427,7 @@ export function TripFormPage() {
     if (!token || !tripId) return;
 
     try {
-      const res = await fetch(`http://localhost:8000/api/trips/${tripId}`, {
+      const res = await fetch(`/api/trips/${tripId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -558,7 +558,7 @@ export function TripFormPage() {
         };
 
         const patchRes = await fetch(
-          `http://localhost:8000/api/trips/${tripId}`,
+          `/api/trips/${tripId}`,
           {
             method: 'PATCH',
             headers: {
@@ -604,7 +604,7 @@ export function TripFormPage() {
         budget: values.budget ? Number(values.budget) : (values.budget = null),
       };
 
-      const res = await fetch('http://localhost:8000/api/trips', {
+      const res = await fetch('/api/trips', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

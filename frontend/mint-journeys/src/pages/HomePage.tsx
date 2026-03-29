@@ -26,7 +26,7 @@ import {
 } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { notifications } from '@mantine/notifications';
-import background from '../assets/background.png';
+import background from '../assets/background.webp';
 
 // api回覆格式
 type Trip = {
@@ -60,7 +60,7 @@ export function HomePage() {
     // 取得行程資料
     const fetchTrips = async () => {
       try {
-        const res = await fetch('http://localhost:8000/api/trips', {
+        const res = await fetch('/api/trips', {
           headers: { Authorization: `Bearer ${storedToken}` },
         });
         const result = await res.json();
@@ -102,7 +102,7 @@ export function HomePage() {
 
     const fetchNotifications = async () => {
       try {
-        const res = await fetch('http://localhost:8000/api/notifications', {
+        const res = await fetch('/api/notifications', {
           headers: {
             Authorization: `Bearer ${storedToken}`,
           },

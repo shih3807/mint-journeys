@@ -76,7 +76,7 @@ export function AuthPage() {
           password: values.password,
         });
         try {
-          const loginAPI = 'http://localhost:8000/api/auth/login';
+          const loginAPI = '/api/auth/login';
           const res = await fetch(loginAPI, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -117,7 +117,7 @@ export function AuthPage() {
           password: values.password,
         });
         try {
-          const registerAPI = 'http://localhost:8000/api/auth/register';
+          const registerAPI = '/api/auth/register';
           const res = await fetch(registerAPI, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

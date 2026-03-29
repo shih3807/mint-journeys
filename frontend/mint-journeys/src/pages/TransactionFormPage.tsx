@@ -79,7 +79,7 @@ export function TransactionFormPage() {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const res = await fetch('http://localhost:8000/api/categories');
+        const res = await fetch('/api/categories');
         const result: CategoryApiResponse = await res.json();
 
         if (!result.ok || !Array.isArray(result.data)) {
@@ -112,7 +112,7 @@ export function TransactionFormPage() {
     formData.append('file', file);
 
     const imgRes = await fetch(
-      `http://localhost:8000/api/transaction/${targetTripId}/image`,
+      `/api/transaction/${targetTripId}/image`,
       {
         method: 'POST',
         headers: {
@@ -197,7 +197,7 @@ export function TransactionFormPage() {
           : null,
       };
 
-      const res = await fetch('http://localhost:8000/api/transaction', {
+      const res = await fetch('/api/transaction', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
