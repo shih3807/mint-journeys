@@ -20,7 +20,7 @@ class User(Base):
         "Trip", back_populates="creator"
     )
     trips: Mapped[Optional[List["TripMember"]]] = relationship(
-        "Trip", back_populates="user", cascade="all, delete-orphan"
+        "TripMember", back_populates="user", cascade="all, delete-orphan"
     )
     transactions: Mapped[Optional[List["Transaction"]]] = relationship(
         "Transaction", back_populates="user"
@@ -43,6 +43,9 @@ class Trip(Base):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+    image_version: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, default=func.now(), nullable=True
+    )
 
     creator: Mapped["User"] = relationship("User", back_populates="trips_created")
     members: Mapped[List["TripMember"]] = relationship(
@@ -89,6 +92,7 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[Optional[str]] = mapped_column(String(255))
     trip_id: Mapped[int] = mapped_column(ForeignKey("trips.id", ondelete="CASCADE"))
     user_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
@@ -100,7 +104,7 @@ class Transaction(Base):
     currency_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("currencies.id", ondelete="SET NULL"), nullable=True
     )
-    base_currency_amount: Mapped[float] = mapped_column(Float, nullable=False)
+    base_currency_amount: Mapped[float] = mapped_column(Float, nullable=True)
     description: Mapped[Optional[str]] = mapped_column(String(255))
     transaction_date: Mapped[Optional[date]] = mapped_column(Date)
     image_filename: Mapped[Optional[str]] = mapped_column(String(225))

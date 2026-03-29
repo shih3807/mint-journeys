@@ -11,9 +11,9 @@ from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from database import Base, engine, get_db
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import select, delete
-from typing import List, Any
-from pydantic import EmailStr
+from sqlalchemy import select, delete, func, and_
+from typing import List
+from datetime import date, datetime
 from models.image_service import ImageService
 from models.connection_manager import ConnectionManager
 from models.table_models import (
@@ -68,6 +68,8 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # websocket連線
 connection_manager = ConnectionManager()
+
+
 @app.websocket("/ws/{trip_id}")
 async def websocket_endpoint(websocket: WebSocket, trip_id: str):
     await connection_manager.connect(websocket, trip_id)
@@ -327,7 +329,7 @@ def create_trip(
 
         return JSONResponse(
             status_code=200,
-            content={"ok": True, "message": "成功建立新行程！"},
+            content={"ok": True, "message": "成功建立新行程！", "trip_id": trip.id},
         )
 
     except Exception as e:
@@ -392,6 +394,9 @@ def get_trips(request: Request, db: Session = Depends(get_db)):
                 "image_filename": ImageService.file_url(trip.image_filename)
                 if (trip.image_filename)
                 else None,
+                "image_version": trip.image_version.isoformat()
+                if trip.image_version
+                else None,
             }
 
         def shared_trip(trip: Trip):
@@ -406,12 +411,15 @@ def get_trips(request: Request, db: Session = Depends(get_db)):
                 "image_filename": ImageService.file_url(trip.image_filename)
                 if (trip.image_filename)
                 else None,
+                "image_version": trip.image_version.isoformat()
+                if trip.image_version
+                else None,
                 "members": [
                     {
                         "user_id": m.user.id,
                         "name": m.user.name,
-                        "avatar": ImageService.file_url(m.user.avatar)
-                        if m.user.avatar
+                        "avatar": ImageService.file_url(m.user.avatar_filename)
+                        if m.user.avatar_filename
                         else None,
                     }
                     for m in trip.members
@@ -468,35 +476,68 @@ def get_trip(request: Request, trip_id: int, db: Session = Depends(get_db)):
 
         transactions = db.execute(stmt).scalars().all()
 
-        trip_data = (
-            {
+        # 共享行程加成員資料
+        if len(trip.members) == 1:
+            trip_data = {
                 "id": trip.id,
                 "name": trip.name,
-                "base_currency": trip.base_currency,
+                "base_currency_id": trip.currency.id if trip.currency else None,
+                "base_currency": trip.currency.code if trip.currency else None,
                 "image_filename": ImageService.file_url(trip.image_filename)
                 if (trip.image_filename)
+                else None,
+                "image_version": trip.image_version.isoformat()
+                if trip.image_version
                 else None,
                 "budget": trip.budget,
                 "start_date": trip.start_date.isoformat() if trip.start_date else None,
                 "end_date": trip.end_date.isoformat() if trip.end_date else None,
                 "created_by": trip.created_by,
-            },
-        )
+            }
 
-        transactions_data = (
-            [
-                {
-                    "id": t.id,
-                    "amount": t.amount,
-                    "currency": t.currency.code,
-                    "description": t.description,
-                    "transaction_date": t.transaction_date,
-                    "category": t.category.name,
-                    "user": t.user.name,
-                }
-                for t in transactions
-            ],
-        )
+        else:
+            trip_data = {
+                "id": trip.id,
+                "name": trip.name,
+                "base_currency_id": trip.currency.id if trip.currency else None,
+                "base_currency": trip.currency.code if trip.currency else None,
+                "image_filename": ImageService.file_url(trip.image_filename)
+                if (trip.image_filename)
+                else None,
+                "image_version": trip.image_version.isoformat()
+                if trip.image_version
+                else None,
+                "budget": trip.budget,
+                "start_date": trip.start_date.isoformat() if trip.start_date else None,
+                "end_date": trip.end_date.isoformat() if trip.end_date else None,
+                "created_by": trip.created_by,
+                "members": [
+                    {
+                        "user_id": m.user.id,
+                        "name": m.user.name,
+                        "avatar": ImageService.file_url(m.user.avatar_filename)
+                        if m.user.avatar_filename
+                        else None,
+                    }
+                    for m in trip.members
+                ],
+            }
+
+        transactions_data = [
+            {
+                "id": t.id,
+                "name": t.name,
+                "amount": t.amount,
+                "currency": t.currency.code,
+                "description": t.description,
+                "transaction_date": t.transaction_date.isoformat()
+                if t.transaction_date
+                else None,
+                "category": t.category.name,
+                "user": t.user.name,
+            }
+            for t in transactions
+        ]
 
         return JSONResponse(
             status_code=200,
@@ -571,10 +612,10 @@ def update_trip(
         if data.name:
             trip.name = data.name
 
-        if data.base_currency_id:
+        if data.base_currency_id is not None:
             trip.base_currency_id = data.base_currency_id
 
-        if data.budget:
+        if data.budget is not None:
             trip.budget = data.budget
 
         if data.start_date:
@@ -850,6 +891,7 @@ def upload_trip_image(
         )
 
     trip.image_filename = filename
+    trip.image_version = datetime.datetime.now()
 
     db.commit()
 
@@ -887,6 +929,7 @@ def delete_trip_image(request: Request, trip_id: int, db: Session = Depends(get_
     ImageService.delete_image(trip.image_filename)
 
     trip.image_filename = None
+    trip.image_version = datetime.datetime.now()
 
     db.commit()
 
@@ -897,7 +940,7 @@ def delete_trip_image(request: Request, trip_id: int, db: Session = Depends(get_
 
 
 # 預設分類
-@app.get("/api/categories/", response_model=List[dict])
+@app.get("/api/categories", response_model=List[dict])
 async def get_categories(db: Session = Depends(get_db)):
     try:
         categories = db.execute(select(Category)).scalars().all()
@@ -922,7 +965,7 @@ async def get_categories(db: Session = Depends(get_db)):
 
 
 # 取得貨幣
-@app.get("/api/currencies/", response_model=List[dict])
+@app.get("/api/currencies", response_model=List[dict])
 async def get_currencies(db: Session = Depends(get_db)):
     try:
         currencies = db.execute(select(Currency)).scalars().all()
@@ -948,8 +991,8 @@ async def get_currencies(db: Session = Depends(get_db)):
 
 
 # 消費紀錄
-@app.post("/api/transactions")
-def create_transaction(
+@app.post("/api/transaction")
+async def create_transaction(
     request: Request,
     data: TransactionCreate,
     db: Session = Depends(get_db),
@@ -986,15 +1029,16 @@ def create_transaction(
 
         # 確認類別存在
         stmt = select(Category).where(Category.id == data.category_id)
-        currency = db.execute(stmt).scalar_one_or_none()
+        category = db.execute(stmt).scalar_one_or_none()
 
-        if not currency:
+        if not category:
             return JSONResponse(
                 status_code=404, content={"error": True, "message": "類別不存在"}
             )
 
         transaction = Transaction(
             trip_id=data.trip_id,
+            name=data.name,
             user_id=user_id,
             category_id=data.category_id,
             amount=data.amount,
@@ -1011,15 +1055,17 @@ def create_transaction(
         asyncio.create_task(
             connection_manager.broadcast_to_trip(
                 str(data.trip_id),
-                {
-                    "message": "新增消費紀錄！"
-                },
+                {"message": "新增消費紀錄！"},
             )
         )
 
         return JSONResponse(
             status_code=200,
-            content={"ok": True, "message": "消費紀錄儲存成功！"},
+            content={
+                "ok": True,
+                "message": "成功儲存消費紀錄！",
+                "transaction_id": transaction.id,
+            },
         )
     except Exception as e:
         print(e)
@@ -1050,11 +1096,14 @@ def get_expenses(request: Request, transaction_id: int, db: Session = Depends(ge
 
         expenses = {
             "id": transaction.id,
+            "name": transaction.name,
             "trip_id": transaction.trip_id,
-            "create_by": transaction.user_id,
+            "create_by": transaction.user.name,
             "category_id": transaction.category_id,
-            "amount": transaction.category_id,
+            "category": transaction.category.name,
+            "amount": transaction.amount,
             "currency_id": transaction.currency_id,
+            "currency": transaction.currency.code,
             "description": transaction.description,
             "create_at": transaction.transaction_date.isoformat()
             if transaction.transaction_date
@@ -1116,8 +1165,195 @@ def delete_expense(
         raise
 
 
+@app.get("/api/trips/{trip_id}/analytics")
+def get_trip_analytics(
+    request: Request,
+    trip_id: int,
+    user: str | None = None,
+    category: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    db: Session = Depends(get_db),
+):
+    try:
+        # 驗證是否登入
+        auth_header = request.headers.get("Authorization")
+        if not auth_header:
+            return JSONResponse(
+                status_code=403,
+                content={"ok": False, "message": "未登入系統，拒絕存取"},
+            )
+
+        # 檢查旅程
+        trip = db.get(Trip, trip_id)
+        if not trip:
+            return JSONResponse(
+                status_code=404,
+                content={"ok": False, "message": "旅程不存在"},
+            )
+
+        # 篩選條件
+        filters = [Transaction.trip_id == trip_id]
+
+        if user:
+            filters.append(User.name == user)
+
+        if category:
+            filters.append(Category.name == category)
+
+        if start_date:
+            filters.append(Transaction.transaction_date >= start_date)
+
+        if end_date:
+            filters.append(Transaction.transaction_date <= end_date)
+
+        summary_stmt = (
+            select(
+                func.coalesce(func.sum(Transaction.amount), 0).label("total_amount"),
+                func.count(Transaction.id).label("total_count"),
+                func.coalesce(func.avg(Transaction.amount), 0).label("avg_amount"),
+            )
+            .select_from(Transaction)
+            .outerjoin(Transaction.user)
+            .outerjoin(Transaction.category)
+            .where(and_(*filters))
+        )
+
+        summary_row = db.execute(summary_stmt).one()
+
+        total_amount = float(summary_row.total_amount or 0)
+        total_count = int(summary_row.total_count or 0)
+        avg_amount = float(summary_row.avg_amount or 0)
+
+        # 依類別分析
+        category_stmt = (
+            select(
+                func.coalesce(Category.name, "未分類").label("category"),
+                func.coalesce(func.sum(Transaction.amount), 0).label("amount"),
+                func.count(Transaction.id).label("total"),
+            )
+            .select_from(Transaction)
+            .outerjoin(Category, Transaction.category_id == Category.id)
+            .outerjoin(User, Transaction.user_id == User.id)
+            .where(and_(*filters))
+            .group_by(Category.name)
+            .order_by(func.sum(Transaction.amount).desc())
+        )
+
+        category_rows = db.execute(category_stmt).all()
+        category_breakdown = [
+            {
+                "category": row.category or "未分類",
+                "amount": round(float(row.amount or 0), 2),
+                "count": int(row.total or 0),
+            }
+            for row in category_rows
+        ]
+
+        # 依使用者分析
+        user_stmt = (
+            select(
+                func.coalesce(User.name, "未知使用者").label("user"),
+                func.coalesce(func.sum(Transaction.amount), 0).label("amount"),
+                func.count(Transaction.id).label("total"),
+            )
+            .select_from(Transaction)
+            .outerjoin(User, Transaction.user_id == User.id)
+            .outerjoin(Category, Transaction.category_id == Category.id)
+            .where(and_(*filters))
+            .group_by(User.name)
+            .order_by(func.sum(Transaction.amount).desc())
+        )
+
+        user_rows = db.execute(user_stmt).all()
+        user_breakdown = [
+            {
+                "user": row.user or "未知使用者",
+                "amount": round(float(row.amount or 0), 2),
+                "count": int(row.total or 0),
+            }
+            for row in user_rows
+        ]
+
+        # 7) 時間趨勢
+        timeline_stmt = (
+            select(
+                func.date(Transaction.transaction_date).label("date"),
+                func.coalesce(func.sum(Transaction.amount), 0).label("amount"),
+            )
+            .select_from(Transaction)
+            .outerjoin(User, Transaction.user_id == User.id)
+            .outerjoin(Category, Transaction.category_id == Category.id)
+            .where(and_(*filters))
+            .group_by(func.date(Transaction.transaction_date))
+            .order_by(func.date(Transaction.transaction_date).asc())
+        )
+
+        timeline_rows = db.execute(timeline_stmt).all()
+        timeline = [
+            {
+                "date": str(row.date),
+                "amount": round(float(row.amount or 0), 2),
+            }
+            for row in timeline_rows
+            if row.date is not None
+        ]
+
+        # 8) filter 選單
+        filter_users_stmt = (
+            select(User.name)
+            .select_from(Transaction)
+            .join(User, Transaction.user_id == User.id)
+            .where(Transaction.trip_id == trip_id)
+            .group_by(User.name)
+            .order_by(User.name.asc())
+        )
+
+        filter_categories_stmt = (
+            select(Category.name)
+            .select_from(Transaction)
+            .join(Category, Transaction.category_id == Category.id)
+            .where(Transaction.trip_id == trip_id)
+            .group_by(Category.name)
+            .order_by(Category.name.asc())
+        )
+
+        filter_users = [row[0] for row in db.execute(filter_users_stmt).all() if row[0]]
+        filter_categories = [
+            row[0] for row in db.execute(filter_categories_stmt).all() if row[0]
+        ]
+
+        currency_code = trip.currency.code if trip.currency else None
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "ok": True,
+                "data": {
+                    "summary": {
+                        "total_amount": round(total_amount, 2),
+                        "total_count": total_count,
+                        "avg_amount": round(avg_amount, 2),
+                        "currency": currency_code,
+                    },
+                    "category_breakdown": category_breakdown,
+                    "user_breakdown": user_breakdown,
+                    "timeline": timeline,
+                    "filters": {
+                        "users": filter_users,
+                        "categories": filter_categories,
+                    },
+                },
+            },
+        )
+
+    except Exception as e:
+        print("get_trip_analytics error:", e)
+        raise
+
+
 # 消費紀錄圖片
-@app.post("/api/transactions/{transaction_id}/image")
+@app.post("/api/transaction/{transaction_id}/image")
 def upload_transaction_image(
     request: Request,
     transaction_id: int,
@@ -1178,7 +1414,7 @@ def upload_transaction_image(
         raise
 
 
-@app.delete("/api/transactions/{transaction_id}/image")
+@app.delete("/api/transaction/{transaction_id}/image")
 def delete_transaction_image(
     request: Request,
     transaction_id: int,
@@ -1266,13 +1502,17 @@ def get_notifications(
                 notification.append(msg.message)
 
             db.execute(delete(Notification).where(Notification.user_id == user_id))
+            db.commit()
 
             return JSONResponse(
                 status_code=200,
                 content={"ok": True, "notification": notification},
             )
 
-        return None
+        return JSONResponse(
+            status_code=200,
+            content={"ok": True, "notification": []},
+        )
 
     except Exception as e:
         print(e)

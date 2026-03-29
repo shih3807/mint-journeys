@@ -39,8 +39,9 @@ class UpdateTripRequest(BaseModel):
 
 class TransactionCreate(BaseModel):
     trip_id: int
+    name: str
     category_id: int
     amount: float
     currency_id: int
-    description: Optional[str]
+    description: Optional[str]= None
     transaction_date: Optional[date] = None

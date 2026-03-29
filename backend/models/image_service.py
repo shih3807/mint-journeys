@@ -4,11 +4,10 @@ from botocore.client import BaseClient
 from dotenv import load_dotenv
 import os
 import time
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 from io import BytesIO
 from typing import BinaryIO
 import random
-
 
 
 load_dotenv()
@@ -18,9 +17,6 @@ class ImageService:
     s3_client: BaseClient | None = None
 
     AVATAR_BG_COLORS = [
-        "#f7f4d5",
-        "#eef2c2",
-        "#e4efad",
         "#daeb97",
         "#afc584",
         "#9ab665",
@@ -142,7 +138,7 @@ class ImageService:
         return f"avatars/{user_id}.webp"
 
     @classmethod
-    def generate_avatar(cls,name: str, size: int = 128) -> BytesIO|None:
+    def generate_avatar(cls, name: str, size: int = 128) -> BytesIO | None:
         """
         生成固定顏色範圍的頭貼，名字首字母置中。
 
@@ -151,11 +147,13 @@ class ImageService:
             size: 圖片尺寸 (px)
 
         Returns:
-            成功：頭貼圖片webp檔 
+            成功：頭貼圖片webp檔
             失敗：None
         """
 
-        text = name[0].upper() if name else "?"
+        text = name[0] if name else "?"
+        if text.isascii():
+            text = text.upper()
 
         bg_color = random.choice(cls.AVATAR_BG_COLORS)
 
@@ -165,19 +163,23 @@ class ImageService:
         draw = ImageDraw.Draw(img)
         if not draw:
             return None
-   
-        font_path = "../fonts/Merriweather.ttf"
-        font = ImageFont.truetype(font_path, int(size / 2))
-        
-        if not font:
+
+        font_path = "./fonts/NotoSerifTC-Bold.ttf"
+        try:
+            font = ImageFont.truetype(font_path, int(size / 2))
+        except OSError:
             font = ImageFont.load_default()
 
         bbox = draw.textbbox((0, 0), text, font=font)
-        w = bbox[2] - bbox[0]  
-        h = bbox[3] - bbox[1]  
-        draw.text(((size - w) / 2, (size - h) / 2), text, font=font, fill=text_color)
+        w = bbox[2] - bbox[0]
+        h = bbox[3] - bbox[1]
+        draw.text(
+            ((size - w) / 2 - bbox[0], (size - h) / 2 - bbox[1]),
+            text,
+            font=font,
+            fill=text_color,
+        )
 
-        
         buffer = BytesIO()
         img.save(buffer, format="WEBP")
         buffer.seek(0)
@@ -191,10 +193,21 @@ class ImageService:
 
         image = Image.open(file)
 
+        image = ImageOps.exif_transpose(image)
+
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+
+        image.thumbnail((1600, 1600))
+
         buffer = BytesIO()
-
-        image.save(buffer, format="WEBP", quality=80)
-
+        image.save(
+            buffer,
+            format="WEBP",
+            quality=80,
+            optimize=True,
+            method=6,
+        )
         buffer.seek(0)
 
         return buffer
