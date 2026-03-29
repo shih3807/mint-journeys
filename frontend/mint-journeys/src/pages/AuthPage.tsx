@@ -12,22 +12,33 @@ import {
   Image,
 } from '@mantine/core';
 import { useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { useSearchParams, useNavigate } from 'react-router';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
 import icon from '../assets/icon.webp';
 
+// 資料格式
+type AuthFormValues = {
+  name: string;
+  email: string;
+  password: string;
+};
+
 export function AuthPage() {
+  const navigate = useNavigate();
+  const [submitting, setSubmitting] = useState(false);
   // 狀態切換
   const [searchParams] = useSearchParams();
   const mode = searchParams.get('type');
-  const [type, setType] = useState(mode === 'login' ? 'login' : 'register');
+  const [type, setType] = useState<string>(
+    mode === 'login' ? 'login' : 'register'
+  );
   const toggle = () => {
     setType((prev) => (prev === 'login' ? 'register' : 'login'));
   };
 
   // 表格設定
-  const form = useForm({
+  const form = useForm<AuthFormValues>({
     initialValues: {
       email: 'test@test.com',
       name: '測試帳號',
@@ -56,6 +67,7 @@ export function AuthPage() {
 
   // 送出表單
   const handleAuthSubmit = async (values: typeof form.values) => {
+    setSubmitting(true);
     // 登入
     try {
       if (type === 'login') {
@@ -72,18 +84,23 @@ export function AuthPage() {
           });
           const result = await res.json();
 
+          const success = 'primary.6';
+          const fail = 'accent-red.5';
+
           if (result.error) {
             notifications.show({
               message: result.message,
-              color: 'accent-red.5',
+              color: fail,
             });
           } else {
             localStorage.setItem('token', result.token);
             notifications.show({
               message: '登入成功，正在導向...',
-              color: 'primary.6',
+              color: success,
             });
-            // setTimeout(() => (window.location.href = '/home'), 1500);
+            setTimeout(() => {
+              navigate('/home', { replace: true });
+            }, 1500);
           }
         } catch (error) {
           notifications.show({
@@ -100,23 +117,26 @@ export function AuthPage() {
           password: values.password,
         });
         try {
-          const loginAPI = 'http://localhost:8000/api/auth/register';
-          const res = await fetch(loginAPI, {
+          const registerAPI = 'http://localhost:8000/api/auth/register';
+          const res = await fetch(registerAPI, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: data,
           });
           const result = await res.json();
 
+          const success = 'primary.6';
+          const fail = 'accent-red.5';
+
           if (result.error) {
             notifications.show({
               message: result.message,
-              color: 'accent-red.5',
+              color: fail,
             });
           } else {
             notifications.show({
               message: '註冊成功！請返回登入',
-              color: 'primary.6',
+              color: success,
             });
             toggle();
           }
@@ -125,7 +145,7 @@ export function AuthPage() {
             message: '伺服器連線失敗，請稍後再試',
             color: 'accent-red.5',
           });
-          console.log('loginError:', error);
+          console.log('registerError:', error);
         }
       }
     } catch (error) {
@@ -134,6 +154,8 @@ export function AuthPage() {
         color: 'accent-red.5',
       });
       console.log('authError:', error);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -174,7 +196,14 @@ export function AuthPage() {
               />
             </Stack>
 
-            <Button fullWidth size="md" mt="xl" color="primary" type="submit">
+            <Button
+              fullWidth
+              size="md"
+              mt="xl"
+              color="primary"
+              type="submit"
+              loading={submitting}
+            >
               {type === 'login' ? '登入' : '註冊'}
             </Button>
           </form>
