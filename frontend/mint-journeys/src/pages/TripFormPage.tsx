@@ -123,7 +123,7 @@ export function TripFormPage() {
   useEffect(() => {
     const fetchCurrencies = async () => {
       try {
-        const res = await fetch('/api/currencies/');
+        const res = await fetch('/api/currencies');
         const result: CurrencyApiResponse = await res.json();
 
         if (!result.ok || !Array.isArray(result.data)) {

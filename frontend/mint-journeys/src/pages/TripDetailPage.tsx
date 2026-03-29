@@ -694,11 +694,11 @@ export function TripDetailPage() {
                             name: item.user,
                             value: item.amount,
                             color: [
-                              'primary.4',
-                              'primary.5',
                               'primary.6',
-                              'primary.7',
-                              'primary.8',
+                              'secondary.6',
+                              'accent-blue.6',
+                              'accent-red.9',
+                              'accent-grey.6',
                             ][index % 5],
                           }))}
                           mx="auto"
