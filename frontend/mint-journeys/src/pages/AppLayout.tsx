@@ -31,8 +31,9 @@ export function AppLayout() {
             gap={16}
             align="center"
             onClick={() => navigate('/home')}
+            style={{ cursor: 'pointer' }}
           >
-            <Image src={icon} w={28} style={{ cursor: 'pointer' }} />
+            <Image src={icon} w={28}  />
             <Title order={3} c="#0a3323" style={{ fontWeight: 900 }}>
               Mint Journeys
             </Title>
