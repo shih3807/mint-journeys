@@ -317,20 +317,17 @@ export function TripFormPage() {
     const formData = new FormData();
     formData.append('file', file);
 
-    const imgRes = await fetch(
-      `/api/trips/${targetTripId}/image`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      }
-    );
+    const imgRes = await fetch(`/api/trips/${targetTripId}/image`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
 
     const imgResult = await imgRes.json();
 
-    if (imgResult.status === 403) {
+    if (imgRes.status === 403) {
       notifications.show({
         message: '登入已失效，請重新登入',
         color: 'accent-red.5',
@@ -354,15 +351,12 @@ export function TripFormPage() {
     if (!token || !tripId) return;
 
     try {
-      const res = await fetch(
-        `/api/trips/${tripId}/image`,
-        {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const res = await fetch(`/api/trips/${tripId}/image`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       const result = await res.json();
 
@@ -397,17 +391,14 @@ export function TripFormPage() {
   ) => {
     if (!memberEmails || memberEmails.length === 0 || !token) return true;
 
-    const res = await fetch(
-      `/api/trips/${targetTripId}/members`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ member_emails: memberEmails }),
-      }
-    );
+    const res = await fetch(`/api/trips/${targetTripId}/members`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ member_emails: memberEmails }),
+    });
 
     const result = await res.json();
 
@@ -512,6 +503,7 @@ export function TripFormPage() {
           message: '共同編輯者 Email 尚在驗證中，請稍候',
           color: 'secondary.3',
         });
+        setSubmitting(false);
         return;
       }
 
@@ -522,6 +514,7 @@ export function TripFormPage() {
           message: '請先修正共同編輯者 Email',
           color: 'accent-red.5',
         });
+        setSubmitting(false);
         return;
       }
     }
@@ -557,17 +550,14 @@ export function TripFormPage() {
           end_date: values.end_date,
         };
 
-        const patchRes = await fetch(
-          `/api/trips/${tripId}`,
-          {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify(payload),
-          }
-        );
+        const patchRes = await fetch(`/api/trips/${tripId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        });
 
         const patchResult = await patchRes.json();
 
@@ -651,9 +641,9 @@ export function TripFormPage() {
         message: '建立失敗，請稍後再試',
         color: 'accent-red.5',
       });
-    }finally {
-    setSubmitting(false);
-  }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // 6. 元件

@@ -3,11 +3,11 @@ from fastapi import (
     Depends,
     Request,
     UploadFile,
-    Form,
+    File,
     WebSocket,
     WebSocketDisconnect,
 )
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from database import Base, engine, get_db
 from sqlalchemy.orm import Session, selectinload
@@ -41,7 +41,6 @@ import datetime
 import os
 import asyncio
 
-from pathlib import Path
 
 app = FastAPI()
 
@@ -256,9 +255,15 @@ def create_trip(
 
         # 如果有共同編輯者
         if data.member_emails:
+
+            email_list = list(dict.fromkeys(data.member_emails))
+
             # 針對每一個共同編輯者做處理
-            for email in data.member_emails:
+            for email in  email_list:
                 member_id = check_member_exists(email)
+
+                if member_id == user_id:
+                    continue
 
                 if not member_id:
                     return JSONResponse(
@@ -804,7 +809,7 @@ def remove_member(
 def upload_trip_image(
     request: Request,
     trip_id: int,
-    file: UploadFile = Form(...),
+    file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
     # 驗證是否登入
@@ -1313,7 +1318,7 @@ def get_trip_analytics(
 def upload_transaction_image(
     request: Request,
     transaction_id: int,
-    file: UploadFile = Form(...),
+    file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
 
