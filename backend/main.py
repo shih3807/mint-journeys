@@ -3,7 +3,7 @@ from fastapi import (
     Depends,
     Request,
     UploadFile,
-    Form,
+    File,
     WebSocket,
     WebSocketDisconnect,
 )
@@ -809,7 +809,7 @@ def remove_member(
 def upload_trip_image(
     request: Request,
     trip_id: int,
-    file: UploadFile = Form(...),
+    file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
     # 驗證是否登入
@@ -1318,7 +1318,7 @@ def get_trip_analytics(
 def upload_transaction_image(
     request: Request,
     transaction_id: int,
-    file: UploadFile = Form(...),
+    file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
 
