@@ -36,7 +36,6 @@ import bcrypt
 import jwt
 import datetime
 import os
-import asyncio
 
 
 app = FastAPI()
