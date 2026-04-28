@@ -134,7 +134,7 @@ export function LoginPage() {
 
             <Stack gap="xs" justify="center">
               <Title order={3} fw={900} c="accent-blue.8" lh={1} maw={620}>
-                一個專為為旅遊而生的記帳網站
+                一個專為旅遊而生的記帳網站
               </Title>
 
               <Text size="md" c="accent-grey.8" maw={580} lh={1.9}>
