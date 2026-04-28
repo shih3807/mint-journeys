@@ -619,7 +619,7 @@ def add_member(
         secret = os.environ.get("TOKEN_SECRET")
         token = auth_header.split(" ")[1]
         payload = jwt.decode(token, secret, algorithms="HS256")
-        user_name = payload["id"]
+        user_name = payload["name"]
         if not user_name:
             return JSONResponse(
                 status_code=403,
