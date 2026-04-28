@@ -4,8 +4,6 @@ from fastapi import (
     Request,
     UploadFile,
     File,
-    WebSocket,
-    WebSocketDisconnect,
 )
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,7 +13,6 @@ from sqlalchemy import select, delete, func, and_
 from typing import List
 from datetime import date, datetime
 from models.image_service import ImageService
-from models.connection_manager import ConnectionManager
 from models.table_models import (
     User,
     Trip,
@@ -52,26 +49,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Base.metadata.drop_all(bind=engine)  
 Base.metadata.create_all(bind=engine)  # 建置資料表
 insert_test_data()  # 預設資料
-
-
-
-
-# websocket連線
-connection_manager = ConnectionManager()
-
-
-@app.websocket("/ws/{trip_id}")
-async def websocket_endpoint(websocket: WebSocket, trip_id: str):
-    await connection_manager.connect(websocket, trip_id)
-    try:
-        while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        connection_manager.disconnect(websocket, trip_id)
-
 
 
 # 會員系統
@@ -1011,14 +990,6 @@ async def create_transaction(
         db.add(transaction)
         db.commit()
         db.refresh(transaction)
-
-        # 用websocket推播
-        asyncio.create_task(
-            connection_manager.broadcast_to_trip(
-                str(data.trip_id),
-                {"message": "新增消費紀錄！"},
-            )
-        )
 
         return JSONResponse(
             status_code=200,
